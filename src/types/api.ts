@@ -135,6 +135,13 @@ export interface TriggerInfo {
   nodeId: string;
 }
 
+/** SHOW CONTINUOUS QUERIES -- `Query` is the statement text the server stored. */
+export interface CqInfo {
+  cqId: string;
+  query: string;
+  state: string;
+}
+
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
