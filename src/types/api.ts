@@ -151,6 +151,22 @@ export interface ConfigInfo {
   value: string;
 }
 
+/**
+ * One level of the schema lineage tree, assembled client-side from `SHOW DEVICES` + `SHOW TIMESERIES`:
+ * IoTDB has no lineage statement, so these are the only derivation edges the server reports.
+ */
+export interface LineageNode {
+  /** Full path, unique across levels so antd's tree table can key it. */
+  key: string;
+  /** Path segment shown in the name column. */
+  title: string;
+  /** `NODE` is an intermediate mtree level that owns no device or timeseries of its own. */
+  kind: 'DATABASE' | 'NODE' | 'DEVICE' | 'MEASUREMENT';
+  /** Template / alignment for a device, data type for a measurement. */
+  detail?: string;
+  children?: LineageNode[];
+}
+
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
