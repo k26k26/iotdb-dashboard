@@ -15,9 +15,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Modal, Form, Input, Select, Popconfirm } from 'antd';
+import { App as AntdApp, Card, Table, Button, Modal, Form, Input, Select, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
-import { query, nonQuery } from '../../services/rest';
+import { queryRows, nonQuery } from '../../services/rest';
 import type { TimeseriesInfo } from '../../types/api';
 
 const TimeseriesManagement: React.FC = () => {
@@ -25,22 +25,22 @@ const TimeseriesManagement: React.FC = () => {
   const [timeseries, setTimeseries] = useState<TimeseriesInfo[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
 
   const fetchTimeseries = async () => {
     setLoading(true);
     try {
-      const result = await query('SHOW TIMESERIES');
-      const values = Array.isArray(result?.values) ? result.values : [];
+      const rows = await queryRows('SHOW TIMESERIES');
       setTimeseries(
-        values.map((row) => ({
-          timeseries: row[0],
-          datatype: row[1] || '',
-          encoding: row[2] || '',
-          compression: row[3] || '',
+        rows.map((row) => ({
+          timeseries: String(row.Timeseries),
+          datatype: row.DataType || '',
+          encoding: row.Encoding || '',
+          compression: row.Compression || '',
         }))
       );
-    } catch (error) {
-      message.error('获取测点列表失败');
+    } catch (error: any) {
+      message.error(`获取测点列表失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -118,12 +118,17 @@ const TimeseriesManagement: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         footer={null}
       >
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ datatype: 'INT64', encoding: 'RLE', compression: 'LZ4' }}
+          onFinish={handleCreate}
+        >
           <Form.Item name="path" label="路径" rules={[{ required: true }]}>
             <Input placeholder="root.sg.d1.s1" />
           </Form.Item>
           <Form.Item name="datatype" label="数据类型" rules={[{ required: true }]}>
-            <Select defaultValue="INT64">
+            <Select>
               <Select.Option value="INT64">INT64</Select.Option>
               <Select.Option value="INT32">INT32</Select.Option>
               <Select.Option value="FLOAT">FLOAT</Select.Option>
@@ -133,7 +138,7 @@ const TimeseriesManagement: React.FC = () => {
             </Select>
           </Form.Item>
           <Form.Item name="encoding" label="编码" rules={[{ required: true }]}>
-            <Select defaultValue="RLE">
+            <Select>
               <Select.Option value="RLE">RLE</Select.Option>
               <Select.Option value="PLAIN">PLAIN</Select.Option>
               <Select.Option value="TS_2DIFF">TS_2DIFF</Select.Option>
@@ -141,7 +146,7 @@ const TimeseriesManagement: React.FC = () => {
             </Select>
           </Form.Item>
           <Form.Item name="compression" label="压缩" rules={[{ required: true }]}>
-            <Select defaultValue="LZ4">
+            <Select>
               <Select.Option value="LZ4">LZ4</Select.Option>
               <Select.Option value="SNAPPY">SNAPPY</Select.Option>
               <Select.Option value="GZIP">GZIP</Select.Option>
