@@ -17,29 +17,32 @@
 import iotdb from './iotdb';
 import type { QueryResult } from '../types/api';
 
-/**
- * information_schema only exists in the table model, so these statements must go
- * to /rest/table/v1/query — the tree-model endpoint cannot parse them.
- */
-export interface TableQueryResult {
-  column_names?: string[] | null;
-  data_types?: string[] | null;
-  values?: any[][] | null;
+// Failed statements still come back as HTTP 200 with an error `code` in the body.
+export interface RestBody {
   code?: number;
   message?: string;
 }
 
-// Failed statements still come back as HTTP 200 with an error `code` in the body.
-const assertOk = (data: TableQueryResult): TableQueryResult => {
+export const assertRestOk = (data: RestBody | null | undefined): void => {
   if (typeof data?.code === 'number' && data.code !== 200) {
     throw new Error(data.message || `IoTDB REST request failed (code ${data.code})`);
   }
-  return data;
 };
+
+/**
+ * information_schema only exists in the table model, so these statements must go
+ * to /rest/table/v1/query — the tree-model endpoint cannot parse them.
+ */
+export interface TableQueryResult extends RestBody {
+  column_names?: string[] | null;
+  data_types?: string[] | null;
+  values?: any[][] | null;
+}
 
 export const queryTable = async (sql: string): Promise<TableQueryResult> => {
   const response = await iotdb.post('/rest/table/v1/query', { sql });
-  return assertOk(response.data);
+  assertRestOk(response.data);
+  return response.data;
 };
 
 export const queryTableRows = async (sql: string): Promise<Record<string, any>[]> => {

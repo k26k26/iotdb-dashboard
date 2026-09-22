@@ -22,40 +22,8 @@ import { query } from '../../services/rest';
 import { useQueryStore } from '../../stores/query';
 import type { QueryResult } from '../../types/api';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
-
-interface Field {
-  title: string;
-  key: string;
-}
-
-// /rest/v2/query answers column-oriented: values[colIndex][rowIndex]. Time is only ever in
-// `timestamps`, and only the SHOW-style responses fill `column_names` -- a SELECT comes back
-// with the names in `expressions` instead.
-function shapeResult(result: QueryResult) {
-  const cols = Array.isArray(result.values) ? result.values : [];
-  const times = Array.isArray(result.timestamps) ? result.timestamps : [];
-  const columnNames = Array.isArray(result.column_names) ? result.column_names : [];
-  const expressions = Array.isArray(result.expressions) ? result.expressions : [];
-  const named = columnNames.length ? columnNames : expressions;
-  const names = named.length ? named : cols.map((_, j) => `column ${j + 1}`);
-  const hasTime = times.length > 0;
-
-  const fields: Field[] = [
-    ...(hasTime ? [{ title: 'Time', key: '__time' }] : []),
-    ...names.map((name, j) => ({ title: name, key: `c${j}` })),
-  ];
-  const rowCount = hasTime ? times.length : (cols[0]?.length ?? 0);
-  const rows = Array.from({ length: rowCount }, (_, i) => {
-    const row: Record<string, unknown> = { key: i };
-    if (hasTime) row.__time = times[i];
-    names.forEach((_, j) => {
-      row[`c${j}`] = cols[j]?.[i] ?? null;
-    });
-    return row;
-  });
-
-  return { fields, rows, hasTime };
-}
+import { shapeResult, toChartSeries } from '../../utils/queryResult';
+import type { Field } from '../../utils/queryResult';
 
 const Query: React.FC = () => {
   const [sql, setSql] = useState('SELECT s1, s2 FROM root.sg.d1 LIMIT 100');
@@ -174,9 +142,7 @@ const Query: React.FC = () => {
                 <TimeSeriesChart
                   title={sql}
                   xAxisData={result.timestamps}
-                  series={fields
-                    .filter((f) => f.key !== '__time')
-                    .map((f) => ({ name: f.title, data: rows.map((row) => row[f.key]) }))}
+                  series={toChartSeries({ fields, rows, hasTime })}
                   height={400}
                 />
               ) : (

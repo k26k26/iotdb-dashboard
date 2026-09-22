@@ -27,6 +27,9 @@ export interface QueryResult {
   data_types: string[];
   timestamps: number[];
   values?: any[][];
+  /** Only present on a rejected statement, which still arrives as HTTP 200. */
+  code?: number;
+  message?: string;
 }
 
 export interface QueryHistoryItem {

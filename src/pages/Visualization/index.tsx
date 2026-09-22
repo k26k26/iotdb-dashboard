@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
-import { Card, Button, Space, message, Row, Col, Input } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { App as AntdApp, Card, Button, Space, Row, Col, Input, Empty } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
-import { query } from '../../services/rest';
+import { query, assertRestOk } from '../../services/rest';
+import { shapeResult, toChartSeries } from '../../utils/queryResult';
 import type { QueryResult } from '../../types/api';
 
 interface ChartConfig {
@@ -28,24 +29,52 @@ interface ChartConfig {
   data: QueryResult | null;
 }
 
+const ChartPanel: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
+  const shaped = useMemo(() => shapeResult(chart.data), [chart.data]);
+  const series = useMemo(() => toChartSeries(shaped), [shaped]);
+
+  if (!chart.data) return null;
+  if (shaped.rows.length === 0) {
+    return <Empty description="查询没有返回数据，请确认路径与设备是否存在" />;
+  }
+  if (!shaped.hasTime) return <Empty description="结果没有时间轴，无法绘制时序曲线" />;
+  if (series.length === 0) return <Empty description="查询没有返回数值列" />;
+
+  return (
+    <TimeSeriesChart
+      title={chart.sql}
+      xAxisData={chart.data.timestamps}
+      series={series}
+      height={300}
+    />
+  );
+};
+
 const Visualization: React.FC = () => {
   const [charts, setCharts] = useState<ChartConfig[]>([]);
   const [newSql, setNewSql] = useState('SELECT s1 FROM root.sg.d1 LIMIT 100');
   const [newTitle, setNewTitle] = useState('新图表');
+  const [adding, setAdding] = useState(false);
+  const { message } = AntdApp.useApp();
 
   const handleAddChart = async () => {
+    if (!newSql.trim()) {
+      message.warning('请输入 SQL 语句');
+      return;
+    }
+    setAdding(true);
     try {
       const data = await query(newSql);
-      const newChart: ChartConfig = {
-        id: Date.now().toString(),
-        sql: newSql,
-        title: newTitle,
-        data,
-      };
-      setCharts([...charts, newChart]);
+      assertRestOk(data);
+      setCharts([
+        ...charts,
+        { id: Date.now().toString(), sql: newSql, title: newTitle, data },
+      ]);
       message.success('图表添加成功');
     } catch (error: any) {
       message.error(`查询失败: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -56,7 +85,7 @@ const Visualization: React.FC = () => {
   return (
     <div>
       <Card title="可视化看板" size="small">
-        <Space>
+        <Space align="start">
           <Input
             placeholder="图表标题"
             value={newTitle}
@@ -70,7 +99,7 @@ const Visualization: React.FC = () => {
             autoSize={{ minRows: 2, maxRows: 4 }}
             style={{ width: 400 }}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddChart}>
+          <Button type="primary" icon={<PlusOutlined />} loading={adding} onClick={handleAddChart}>
             添加图表
           </Button>
         </Space>
@@ -91,19 +120,7 @@ const Visualization: React.FC = () => {
                 />
               }
             >
-              {chart.data && (
-                <TimeSeriesChart
-                  title={chart.sql}
-                  xAxisData={chart.data.timestamps}
-                  series={chart.data.column_names
-                    .slice(1)
-                    .map((name, i) => {
-                      const values = Array.isArray(chart.data?.values) ? chart.data.values : [];
-                      return { name, data: values.map((v) => v[i]) };
-                    })}
-                  height={300}
-                />
-              )}
+              <ChartPanel chart={chart} />
             </Card>
           </Col>
         ))}
