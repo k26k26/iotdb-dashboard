@@ -91,6 +91,24 @@ export interface CurrentQuery {
   clientIp: string;
 }
 
+/** SHOW REGIONS -- per-region slot assignment and storage usage. */
+export interface RegionInfo {
+  regionId: number;
+  type: string;
+  status: string;
+  database: string;
+  seriesSlotNum: number;
+  timeSlotNum: number;
+  dataNodeId: number;
+  rpcAddress: string;
+  rpcPort: number;
+  role: string;
+  createTime: string;
+  tsFileSize: string;
+  /** `NaN` for schema regions, otherwise a number. */
+  compressionRatio: string;
+}
+
 /** SHOW PIPEPLUGINS -- the connector plugins IoTDB uses to talk to external systems. */
 export interface PipePluginInfo {
   pluginName: string;

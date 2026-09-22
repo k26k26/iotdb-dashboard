@@ -14,44 +14,93 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Spin, Alert } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Table, Button, Spin, Alert, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { query } from '../../services/rest';
+import { queryRows } from '../../services/rest';
+import { formatMillis, isServiceUp } from '../../utils/cluster';
+import type { RegionInfo } from '../../types/api';
+
+const shown = (value: string | null) => value || '-';
+
+/** `CompressionRatio` is the literal text `NaN` for a region holding no tsfiles. */
+const ratio = (value: string) => (Number.isFinite(Number(value)) ? value : '-');
+
+const fetchRegions = async (): Promise<RegionInfo[]> => {
+  const rows = await queryRows('SHOW REGIONS');
+  return rows.map(
+    (row) =>
+      ({
+        regionId: Number(row.RegionId),
+        type: String(row.Type ?? ''),
+        status: String(row.Status ?? ''),
+        database: String(row.Database ?? ''),
+        seriesSlotNum: Number(row.SeriesSlotNum),
+        timeSlotNum: Number(row.TimeSlotNum),
+        dataNodeId: Number(row.DataNodeId),
+        rpcAddress: String(row.RpcAddress ?? ''),
+        rpcPort: Number(row.RpcPort),
+        role: String(row.Role ?? ''),
+        createTime: String(row.CreateTime ?? ''),
+        tsFileSize: String(row.TsFileSize ?? ''),
+        compressionRatio: String(row.CompressionRatio ?? ''),
+      }) as RegionInfo
+  );
+};
 
 const RealTimeMonitoring: React.FC = () => {
-  const [metrics, setMetrics] = useState<{ name: string; value: number; timestamp: number }[]>([]);
+  const [regions, setRegions] = useState<RegionInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const fetchMetrics = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await query('SHOW METRICS');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setMetrics(
-        values.map((row) => ({
-          name: row[0],
-          value: Number(row[1]),
-          timestamp: Date.now(),
-        }))
-      );
-    } catch (error) {
-      message.error('获取监控指标失败');
+      setRegions(await fetchRegions());
+      setError('');
+    } catch (err: any) {
+      setError(`获取区域状态失败: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5000);
-    return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
   const columns = [
-    { title: '指标名', dataIndex: 'name', key: 'name' },
-    { title: '数值', dataIndex: 'value', key: 'value' },
-    { title: '更新时间', dataIndex: 'timestamp', key: 'timestamp', render: (ts: number) => new Date(ts).toLocaleTimeString() },
+    { title: '区域 ID', dataIndex: 'regionId', key: 'regionId' },
+    { title: '类型', dataIndex: 'type', key: 'type' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => (
+        <Tag color={isServiceUp(status) ? 'success' : 'error'}>{status || '-'}</Tag>
+      ),
+    },
+    { title: '数据库', dataIndex: 'database', key: 'database', ellipsis: true },
+    { title: 'Series 槽', dataIndex: 'seriesSlotNum', key: 'seriesSlotNum' },
+    { title: 'Time 槽', dataIndex: 'timeSlotNum', key: 'timeSlotNum' },
+    { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
+    {
+      title: 'RPC 地址',
+      dataIndex: 'rpcAddress',
+      key: 'rpcAddress',
+      render: (_: string, record: RegionInfo) => `${record.rpcAddress}:${record.rpcPort}`,
+    },
+    { title: '角色', dataIndex: 'role', key: 'role' },
+    {
+      title: '创建时间',
+      dataIndex: 'createTime',
+      key: 'createTime',
+      render: (value: string) => formatMillis(value),
+    },
+    { title: 'TsFile 大小', dataIndex: 'tsFileSize', key: 'tsFileSize', render: shown },
+    { title: '压缩比', dataIndex: 'compressionRatio', key: 'compressionRatio', render: ratio },
   ];
 
   return (
@@ -60,20 +109,32 @@ const RealTimeMonitoring: React.FC = () => {
         title="实时监控"
         size="small"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={fetchMetrics}>
+          <Button icon={<ReloadOutlined />} onClick={refresh}>
             刷新
           </Button>
         }
       >
+        <Typography.Paragraph type="secondary">
+          区域级槽位分配与存储用量，每 5 秒刷新一次。
+        </Typography.Paragraph>
         <Spin spinning={loading}>
-          {metrics.length === 0 ? (
-            <Alert description="暂无监控数据" type="info" showIcon />
+          {error ? (
+            <Alert type="error" showIcon title={error} />
+          ) : regions.length === 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              title="暂无区域数据"
+              description="查询成功，当前集群还没有区域。"
+            />
           ) : (
             <Table
-              dataSource={metrics.map((m) => ({ ...m, key: m.name }))}
+              dataSource={regions}
+              rowKey="regionId"
               columns={columns}
               size="small"
-              pagination={false}
+              scroll={{ x: 'max-content' }}
+              pagination={{ pageSize: 20 }}
             />
           )}
         </Spin>

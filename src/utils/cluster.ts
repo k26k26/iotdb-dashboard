@@ -22,8 +22,15 @@ import type { CurrentQuery } from '../types/api';
 export const isServiceUp = (state: string): boolean =>
   ['running', 'normal', 'up'].includes(String(state).toLowerCase());
 
-export const formatMillis = (value: number | null): string =>
-  value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-';
+/**
+ * Timestamps reach us as epoch millis from `information_schema`, but `SHOW REGIONS` and
+ * `SHOW PIPES` hand over text -- and that text is sometimes a quoted number, sometimes ISO.
+ */
+export const formatMillis = (value: string | number | null | undefined): string => {
+  if (!value) return '-';
+  const parsed = dayjs(/^\d+$/.test(String(value)) ? Number(value) : value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '-';
+};
 
 export const queryColumns: ColumnType<CurrentQuery>[] = [
   { title: 'Query ID', dataIndex: 'queryId', key: 'queryId' },

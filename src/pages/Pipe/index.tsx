@@ -17,18 +17,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Table, Button, Spin, Alert, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { getPipes } from '../../services/metadata';
+import { formatMillis } from '../../utils/cluster';
 import type { PipeInfo } from '../../types/api';
-
-/**
- * `SHOW PIPES` carries the creation time as text, `information_schema.pipes` as a timestamp, and
- * the timestamp reaches us as either epoch millis or an ISO string depending on the driver.
- */
-const formatCreationTime = (value: PipeInfo['creationTime']): string => {
-  const parsed = dayjs(/^\d+$/.test(String(value)) ? Number(value) : value);
-  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '-';
-};
 
 /** STOPPED is recoverable, DROPPED is terminal -- worth telling apart. */
 const stateColor = (state: string): string =>
@@ -73,7 +64,7 @@ const PipeManagement: React.FC = () => {
       title: '创建时间',
       dataIndex: 'creationTime',
       key: 'creationTime',
-      render: (value: PipeInfo['creationTime']) => formatCreationTime(value),
+      render: (value: PipeInfo['creationTime']) => formatMillis(value),
     },
     {
       title: '状态',
