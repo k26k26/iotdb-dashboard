@@ -124,6 +124,17 @@ export interface PipePluginInfo {
   exceptionMessage: string;
 }
 
+/** SHOW TRIGGERS -- a trigger is loaded on the DataNode as a Java class, not as SQL. */
+export interface TriggerInfo {
+  triggerName: string;
+  event: string;
+  type: string;
+  state: string;
+  pathPattern: string;
+  className: string;
+  nodeId: string;
+}
+
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
