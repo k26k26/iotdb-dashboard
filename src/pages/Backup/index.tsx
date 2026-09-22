@@ -14,150 +14,229 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Space, Spin, Alert, Tag, Modal, Form, Input } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { query, nonQuery } from '../../services/rest';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  App as AntdApp,
+  Alert,
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Spin,
+  Table,
+  Tag,
+} from 'antd';
+import { ImportOutlined, ReloadOutlined } from '@ant-design/icons';
+import { nonQuery, queryRows } from '../../services/rest';
 
-interface BackupTask {
-  taskId: string;
+interface DatabaseRow {
   database: string;
-  status: string;
-  startTime: number;
-  endTime?: number;
+  schemaReplicationFactor: number;
+  dataReplicationFactor: number;
+  timePartitionInterval: number;
 }
 
+const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
+
+/**
+ * LOAD takes one quoted literal, so the path may not carry a quote, a backslash or a space --
+ * otherwise the value the user typed would end the string and start writing SQL.
+ */
+const LOAD_PATH = /^[^'"\\\s]+$/;
+
+/** SHOW DATABASES reports the interval in millis; 604800000 reads better as 7 天. */
+const duration = (ms: unknown): string => {
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return '-';
+  const units: [number, string][] = [
+    [86400000, '天'],
+    [3600000, '小时'],
+    [60000, '分钟'],
+    [1000, '秒'],
+  ];
+  for (const [size, label] of units) {
+    if (value % size === 0) return `${value / size} ${label}`;
+  }
+  return `${value} 毫秒`;
+};
+
+/**
+ * There is no backup statement in this build, so the page invents no task table: it lists what has to be
+ * backed up and exposes the two file-level statements that really execute (`FLUSH`, `LOAD`).
+ */
 const BackupRecovery: React.FC = () => {
-  const [tasks, setTasks] = useState<BackupTask[]>([]);
+  const [databases, setDatabases] = useState<DatabaseRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
 
-  const fetchTasks = async () => {
+  const fetchDatabases = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await query('SHOW BACKUP TASKS');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setTasks(
-        values.map((row) => ({
-          taskId: row[0],
-          database: row[1] || '',
-          status: row[2] || '',
-          startTime: row[3],
-          endTime: row[4],
+      const rows = await queryRows('SHOW DATABASES');
+      setDatabases(
+        rows.map((row) => ({
+          database: String(row.Database),
+          schemaReplicationFactor: Number(row.SchemaReplicationFactor),
+          dataReplicationFactor: Number(row.DataReplicationFactor),
+          timePartitionInterval: Number(row.TimePartitionInterval),
         }))
       );
-    } catch (error) {
-      message.error('获取备份任务失败');
+      setError('');
+    } catch (err: any) {
+      setDatabases([]);
+      setError(describe(err));
+      message.error(`获取数据库列表失败: ${describe(err)}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    fetchDatabases();
+  }, [fetchDatabases]);
 
-  const handleCreate = async (values: any) => {
+  const flush = async (database: string) => {
     try {
-      await nonQuery(`BACKUP DATABASE ${values.database} TO '${values.path}'`);
-      message.success('备份任务创建成功');
-      setModalOpen(false);
-      form.resetFields();
-      fetchTasks();
-    } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.message || error.message}`);
+      await nonQuery(`FLUSH ${database}`);
+      message.success(`${database} 已刷盘，之后的目录拷贝才会包含内存里的数据`);
+    } catch (err: any) {
+      message.error(`刷盘失败: ${describe(err)}`);
     }
   };
 
-  const handleRestore = async (taskId: string) => {
+  const load = async (values: { path: string }) => {
     try {
-      await nonQuery(`RESTORE DATABASE FROM BACKUP ${taskId}`);
-      message.success('恢复任务启动成功');
-      fetchTasks();
-    } catch (error: any) {
-      message.error(`恢复失败: ${error.response?.data?.message || error.message}`);
+      await nonQuery(`LOAD '${values.path.trim()}'`);
+      message.success(`${values.path} 导入完成`);
+      setModalOpen(false);
+      form.resetFields();
+      fetchDatabases();
+    } catch (err: any) {
+      message.error(`导入失败: ${describe(err)}`);
     }
   };
 
   const columns = [
-    { title: '任务 ID', dataIndex: 'taskId', key: 'taskId' },
     { title: '数据库', dataIndex: 'database', key: 'database' },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => <Tag color={status === 'COMPLETED' ? 'success' : 'processing'}>{status}</Tag>,
+      title: 'Schema 副本',
+      dataIndex: 'schemaReplicationFactor',
+      key: 'schemaReplicationFactor',
     },
     {
-      title: '开始时间',
-      dataIndex: 'startTime',
-      key: 'startTime',
-      render: (ts: number) => new Date(ts).toLocaleString(),
+      title: '数据副本',
+      dataIndex: 'dataReplicationFactor',
+      key: 'dataReplicationFactor',
     },
     {
-      title: '结束时间',
-      dataIndex: 'endTime',
-      key: 'endTime',
-      render: (ts?: number) => (ts ? new Date(ts).toLocaleString() : '-'),
+      title: '时间分区间隔',
+      dataIndex: 'timePartitionInterval',
+      key: 'timePartitionInterval',
+      render: (ms: number) => duration(ms),
+    },
+    {
+      title: '备份判断',
+      key: 'verdict',
+      render: (_: unknown, record: DatabaseRow) => {
+        const factor = Math.max(record.schemaReplicationFactor, record.dataReplicationFactor);
+        return factor <= 1 ? (
+          <Tag color="warning">单份拷贝：承载节点的文件坏了就没有第二份，必须往集群外备份</Tag>
+        ) : (
+          <Tag color="success">{factor} 份副本：可容忍节点整体丢失，跨机备份仍然要做</Tag>
+        );
+      },
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: BackupTask) => (
-        <Button type="link" onClick={() => handleRestore(record.taskId)}>
-          恢复
-        </Button>
+      render: (_: unknown, record: DatabaseRow) => (
+        <Popconfirm
+          title={`刷出 ${record.database} 的内存数据？`}
+          description="拷贝目录前的第一步：没刷盘的数据还只在 memtable 里。"
+          onConfirm={() => flush(record.database)}
+        >
+          <Button type="link">刷盘</Button>
+        </Popconfirm>
       ),
     },
   ];
 
   return (
     <div>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        title="IoTDB 2.0.11 没有备份/恢复语句，也没有备份任务可列"
+        description={
+          <>
+            把 <code>BACKUP DATABASE root.sg TO &apos;/backup&apos;</code> 发给 <code>/rest/v2/query</code>
+            ，服务端回 <code>mismatched input &apos;BACKUP&apos; expecting … FLUSH … LOAD … UNLOAD …</code>
+            ：它列出的顶层关键字里有 LOAD / UNLOAD / FLUSH，唯独没有 BACKUP 和 RESTORE，
+            <code>SHOW BACKUP TASKS</code> 与 <code>SHOW TASKS</code> 也都是 <code>no viable alternative</code>。
+            原来那张表里的 taskId、状态、起止时间，没有任何语句写得进去。
+            <br />
+            真实的文件级备份分三步：先 <code>FLUSH</code> 落盘（下表每行都有按钮），再到 DataNode 主机上拷{' '}
+            <code>data/datanode</code> 目录；恢复时把目录放回去，或者只用 <code>LOAD &apos;…&apos;</code>{' '}
+            把单个 TsFile 导回来（右上角按钮）。导出那一半走不了 SQL：<code>UNLOAD</code> 在语法文件里确实有规则，
+            但 <code>ASTVisitor</code> 里没有 <code>visitUnloadFile</code>，REST 层直接回{' '}
+            <code>This operation type is not supported</code>。要把数据持续复制到另一套集群，用「数据同步」页的 Pipe。
+          </>
+        }
+      />
       <Card
-        title="备份恢复"
+        title="备份对象"
         size="small"
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchTasks}>
+            <Button icon={<ReloadOutlined />} onClick={fetchDatabases}>
               刷新
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              新建备份
+            <Button type="primary" icon={<ImportOutlined />} onClick={() => setModalOpen(true)}>
+              导入 TsFile（LOAD）
             </Button>
           </Space>
         }
       >
         <Spin spinning={loading}>
-          {tasks.length === 0 ? (
-            <Alert description="暂无备份任务" type="info" showIcon />
+          {error ? (
+            <Alert type="error" showIcon title="读取备份对象失败" description={error} />
           ) : (
             <Table
-              dataSource={tasks}
+              dataSource={databases}
               columns={columns}
+              rowKey={(record) => record.database}
               size="small"
+              scroll={{ x: 'max-content' }}
               pagination={{ pageSize: 20 }}
+              locale={{ emptyText: '这个集群里还没有数据库（SHOW DATABASES 返回 0 行）' }}
             />
           )}
         </Spin>
       </Card>
 
-      <Modal
-        title="新建备份"
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-      >
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="database" label="数据库" rules={[{ required: true, message: '请输入数据库名' }]}>
-            <Input placeholder="root.sg" />
-          </Form.Item>
-          <Form.Item name="path" label="备份路径" rules={[{ required: true, message: '请输入备份路径' }]}>
-            <Input placeholder="file:///backup/iotdb" />
+      <Modal title="导入 TsFile（LOAD）" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
+        <Form form={form} layout="vertical" onFinish={load}>
+          <Form.Item
+            name="path"
+            label="DataNode 主机上的文件路径"
+            extra="路径由服务端在它自己那台机器上解析，相对名会按它的工作目录补齐；不能含空格、引号和反斜杠。"
+            rules={[
+              { required: true, message: '请输入 TsFile 路径' },
+              { pattern: LOAD_PATH, message: '路径不能包含空格、单引号、双引号或反斜杠' },
+            ]}
+          >
+            <Input placeholder="/data/backup/node1/1-0-0.tsfile" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              创建备份
+              导入
             </Button>
           </Form.Item>
         </Form>
