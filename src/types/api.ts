@@ -39,10 +39,12 @@ export interface QueryHistoryItem {
 
 export interface NodeInfo {
   nodeId: string;
-  nodeType: 'CONFIG_NODE' | 'DATA_NODE';
+  nodeType: 'ConfigNode' | 'DataNode';
   status: string;
   internalAddress: string;
   internalPort: number;
+  version?: string;
+  buildInfo?: string;
 }
 
 export interface DatabaseInfo {
@@ -57,27 +59,45 @@ export interface TimeseriesInfo {
   compression: string;
 }
 
+/** information_schema.services */
 export interface ServiceInfo {
-  serviceType: string;
-  status: string;
+  serviceName: string;
+  dataNodeId: number | null;
+  state: string;
 }
 
+/** information_schema.connections */
 export interface ConnectionInfo {
+  dataNodeId: string;
+  sessionId: string;
+  userName: string;
+  lastActiveTime: number;
   clientIp: string;
-  username: string;
 }
 
+/** information_schema.current_queries */
 export interface CurrentQuery {
   queryId: string;
-  sql: string;
+  state: string;
   startTime: number;
-  elapsedTime: number;
+  endTime: number | null;
+  dataNodeId: number | null;
+  costTime: number | null;
+  statement: string;
+  userName: string;
+  clientIp: string;
 }
 
+/** information_schema.pipes */
 export interface PipeInfo {
-  pipeName: string;
   pipeId: string;
-  status: string;
-  sourceDatabase?: string;
-  sinkDatabase?: string;
+  creationTime: number;
+  state: string;
+  pipeSource: string;
+  pipeProcessor: string;
+  pipeSink: string;
+  exceptionMessage: string | null;
+  remainingEventCount: number | null;
+  estimatedRemainingSeconds: number | null;
+  isDegraded: boolean;
 }

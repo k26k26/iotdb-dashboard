@@ -23,11 +23,13 @@ import {
 } from '@ant-design/icons';
 import { getNodes, getServices, getConnections, getCurrentQueries } from '../../services/metadata';
 import type { NodeInfo, ServiceInfo, ConnectionInfo, CurrentQuery } from '../../types/api';
+import { isServiceUp, formatMillis, queryColumns } from '../../utils/cluster';
 
 const { Title } = Typography;
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<string[]>([]);
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [services, setServices] = useState<ServiceInfo[]>([]);
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
@@ -35,22 +37,24 @@ const Dashboard: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const [nodesData, servicesData, connectionsData, queriesData] = await Promise.all([
-        getNodes(),
-        getServices(),
-        getConnections(),
-        getCurrentQueries(),
-      ]);
-      setNodes(nodesData);
-      setServices(servicesData);
-      setConnections(connectionsData);
-      setQueries(queriesData);
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+    const [nodesResult, servicesResult, connectionsResult, queriesResult] = await Promise.allSettled([
+      getNodes(),
+      getServices(),
+      getConnections(),
+      getCurrentQueries(),
+    ]);
+    const failures: string[] = [];
+    const read = <T,>(label: string, result: PromiseSettledResult<T[]>): T[] => {
+      if (result.status === 'fulfilled') return result.value;
+      failures.push(`${label}：${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      return [];
+    };
+    setNodes(read('节点', nodesResult));
+    setServices(read('服务', servicesResult));
+    setConnections(read('连接', connectionsResult));
+    setQueries(read('运行中查询', queriesResult));
+    setErrors(failures);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -59,24 +63,21 @@ const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const serviceStatusColor = (status: string) => {
-    if (status === 'Running' || status === 'Normal') return 'success';
-    if (status === 'Stopped' || status === 'Abnormal') return 'error';
-    return 'default';
-  };
-
-  const columns = [
-    { title: 'Query ID', dataIndex: 'queryId', key: 'queryId' },
-    { title: 'SQL', dataIndex: 'sql', key: 'sql', ellipsis: true },
-    { title: 'Start Time', dataIndex: 'startTime', key: 'startTime' },
-    { title: 'Elapsed (ms)', dataIndex: 'elapsedTime', key: 'elapsedTime' },
-  ];
-
   return (
     <div>
       <Title level={3}>IoTDB 仪表盘</Title>
 
       <Spin spinning={loading}>
+        {errors.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title="部分数据加载失败"
+            description={errors.join('；')}
+          />
+        )}
+
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
             <Card>
@@ -90,7 +91,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="服务状态"
+                title="服务数量"
                 value={services.length}
                 prefix={<ApiOutlined />}
               />
@@ -124,13 +125,15 @@ const Dashboard: React.FC = () => {
               ) : (
                 nodes.map((node) => (
                   <div key={node.nodeId} style={{ marginBottom: 8 }}>
-                    <Tag color={node.status === 'Running' ? 'success' : 'error'}>
+                    <Tag color={node.nodeType === 'ConfigNode' ? 'blue' : 'geekblue'}>
                       {node.nodeType}
                     </Tag>
-                    <span>{node.nodeId}</span>
+                    <Tag color={isServiceUp(node.status) ? 'success' : 'error'}>{node.status}</Tag>
+                    <span>#{node.nodeId}</span>
                     <span style={{ color: '#888', marginLeft: 8 }}>
                       {node.internalAddress}:{node.internalPort}
                     </span>
+                    <span style={{ color: '#bbb', marginLeft: 8 }}>v{node.version}</span>
                   </div>
                 ))
               )}
@@ -141,12 +144,11 @@ const Dashboard: React.FC = () => {
               {services.length === 0 ? (
                 <Alert description="暂无服务数据" type="info" showIcon />
               ) : (
-                services.map((svc, index) => (
-                  <div key={index} style={{ marginBottom: 8 }}>
-                    <Tag color={serviceStatusColor(svc.status)}>
-                      {svc.status}
-                    </Tag>
-                    <span>{svc.serviceType}</span>
+                services.map((svc) => (
+                  <div key={`${svc.serviceName}-${svc.dataNodeId}`} style={{ marginBottom: 8 }}>
+                    <Tag color={isServiceUp(svc.state) ? 'success' : 'default'}>{svc.state}</Tag>
+                    <span>{svc.serviceName}</span>
+                    <span style={{ color: '#888', marginLeft: 8 }}>DataNode {svc.dataNodeId}</span>
                   </div>
                 ))
               )}
@@ -160,7 +162,32 @@ const Dashboard: React.FC = () => {
           ) : (
             <Table
               dataSource={queries.map((q) => ({ ...q, key: q.queryId }))}
-              columns={columns}
+              columns={queryColumns}
+              size="small"
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 'max-content' }}
+            />
+          )}
+        </Card>
+
+        <Card title="当前连接" size="small" style={{ marginTop: 24 }}>
+          {connections.length === 0 ? (
+            <Alert description="暂无连接" type="info" showIcon />
+          ) : (
+            <Table
+              dataSource={connections.map((c) => ({ ...c, key: `${c.dataNodeId}-${c.sessionId}` }))}
+              columns={[
+                { title: 'Client IP', dataIndex: 'clientIp', key: 'clientIp' },
+                { title: 'User', dataIndex: 'userName', key: 'userName' },
+                { title: 'Session', dataIndex: 'sessionId', key: 'sessionId' },
+                { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
+                {
+                  title: 'Last Active',
+                  dataIndex: 'lastActiveTime',
+                  key: 'lastActiveTime',
+                  render: (value: number) => formatMillis(value),
+                },
+              ]}
               size="small"
               pagination={{ pageSize: 10 }}
             />

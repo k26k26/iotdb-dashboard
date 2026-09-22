@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Row, Col, Statistic, Spin, Alert, Tag, Table, Typography } from 'antd';
 import {
   ClusterOutlined,
@@ -22,42 +22,40 @@ import {
   DatabaseOutlined,
   WifiOutlined,
 } from '@ant-design/icons';
-import { getNodes, getDataNodes, getConfigNodes, getServices, getConnections, getCurrentQueries } from '../../services/metadata';
+import { getNodes, getServices, getConnections, getCurrentQueries } from '../../services/metadata';
 import type { NodeInfo, ServiceInfo, ConnectionInfo, CurrentQuery } from '../../types/api';
+import { isServiceUp, formatMillis, queryColumns } from '../../utils/cluster';
 
 const { Title } = Typography;
 
 const ClusterManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<string[]>([]);
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
-  const [dataNodes, setDataNodes] = useState<NodeInfo[]>([]);
-  const [configNodes, setConfigNodes] = useState<NodeInfo[]>([]);
   const [services, setServices] = useState<ServiceInfo[]>([]);
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
   const [queries, setQueries] = useState<CurrentQuery[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const [nodesData, dataNodesData, configNodesData, servicesData, connectionsData, queriesData] = await Promise.all([
-        getNodes(),
-        getDataNodes(),
-        getConfigNodes(),
-        getServices(),
-        getConnections(),
-        getCurrentQueries(),
-      ]);
-      setNodes(nodesData);
-      setDataNodes(dataNodesData);
-      setConfigNodes(configNodesData);
-      setServices(servicesData);
-      setConnections(connectionsData);
-      setQueries(queriesData);
-    } catch (error) {
-      console.error('Failed to fetch cluster data:', error);
-    } finally {
-      setLoading(false);
-    }
+    const [nodesResult, servicesResult, connectionsResult, queriesResult] = await Promise.allSettled([
+      getNodes(),
+      getServices(),
+      getConnections(),
+      getCurrentQueries(),
+    ]);
+    const failures: string[] = [];
+    const read = <T,>(label: string, result: PromiseSettledResult<T[]>): T[] => {
+      if (result.status === 'fulfilled') return result.value;
+      failures.push(`${label}：${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      return [];
+    };
+    setNodes(read('节点', nodesResult));
+    setServices(read('服务', servicesResult));
+    setConnections(read('连接', connectionsResult));
+    setQueries(read('运行中查询', queriesResult));
+    setErrors(failures);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -66,24 +64,40 @@ const ClusterManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const serviceStatusColor = (status: string) => {
-    if (status === 'Running' || status === 'Normal') return 'success';
-    if (status === 'Stopped' || status === 'Abnormal') return 'error';
-    return 'default';
-  };
+  const dataNodes = useMemo(() => nodes.filter((node) => node.nodeType === 'DataNode'), [nodes]);
+  const configNodes = useMemo(() => nodes.filter((node) => node.nodeType === 'ConfigNode'), [nodes]);
 
-  const columns = [
-    { title: 'Query ID', dataIndex: 'queryId', key: 'queryId' },
-    { title: 'SQL', dataIndex: 'sql', key: 'sql', ellipsis: true },
-    { title: 'Start Time', dataIndex: 'startTime', key: 'startTime' },
-    { title: 'Elapsed (ms)', dataIndex: 'elapsedTime', key: 'elapsedTime' },
-  ];
+  const renderNodeList = (list: NodeInfo[], empty: string) =>
+    list.length === 0 ? (
+      <Alert description={empty} type="info" showIcon />
+    ) : (
+      list.map((node) => (
+        <div key={node.nodeId} style={{ marginBottom: 8 }}>
+          <Tag color={isServiceUp(node.status) ? 'success' : 'error'}>{node.status}</Tag>
+          <span>#{node.nodeId}</span>
+          <span style={{ color: '#888', marginLeft: 8 }}>
+            {node.internalAddress}:{node.internalPort}
+          </span>
+          <span style={{ color: '#bbb', marginLeft: 8 }}>v{node.version}</span>
+        </div>
+      ))
+    );
 
   return (
     <div>
       <Title level={3}>集群管理</Title>
 
       <Spin spinning={loading}>
+        {errors.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title="部分数据加载失败"
+            description={errors.join('；')}
+          />
+        )}
+
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
             <Card>
@@ -126,40 +140,12 @@ const ClusterManagement: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
           <Col xs={24} lg={12}>
             <Card title="数据节点" size="small">
-              {dataNodes.length === 0 ? (
-                <Alert description="暂无数据节点" type="info" showIcon />
-              ) : (
-                dataNodes.map((node) => (
-                  <div key={node.nodeId} style={{ marginBottom: 8 }}>
-                    <Tag color={node.status === 'Running' ? 'success' : 'error'}>
-                      {node.status}
-                    </Tag>
-                    <span>{node.nodeId}</span>
-                    <span style={{ color: '#888', marginLeft: 8 }}>
-                      {node.internalAddress}:{node.internalPort}
-                    </span>
-                  </div>
-                ))
-              )}
+              {renderNodeList(dataNodes, '暂无数据节点')}
             </Card>
           </Col>
           <Col xs={24} lg={12}>
             <Card title="配置节点" size="small">
-              {configNodes.length === 0 ? (
-                <Alert description="暂无配置节点" type="info" showIcon />
-              ) : (
-                configNodes.map((node) => (
-                  <div key={node.nodeId} style={{ marginBottom: 8 }}>
-                    <Tag color={node.status === 'Running' ? 'success' : 'error'}>
-                      {node.status}
-                    </Tag>
-                    <span>{node.nodeId}</span>
-                    <span style={{ color: '#888', marginLeft: 8 }}>
-                      {node.internalAddress}:{node.internalPort}
-                    </span>
-                  </div>
-                ))
-              )}
+              {renderNodeList(configNodes, '暂无配置节点')}
             </Card>
           </Col>
         </Row>
@@ -169,15 +155,16 @@ const ClusterManagement: React.FC = () => {
             <Alert description="暂无服务数据" type="info" showIcon />
           ) : (
             <Table
-              dataSource={services.map((svc, index) => ({ ...svc, key: index }))}
+              dataSource={services.map((svc) => ({ ...svc, key: `${svc.serviceName}-${svc.dataNodeId}` }))}
               columns={[
-                { title: '服务类型', dataIndex: 'serviceType', key: 'serviceType' },
+                { title: '服务', dataIndex: 'serviceName', key: 'serviceName' },
+                { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
                 {
                   title: '状态',
-                  dataIndex: 'status',
-                  key: 'status',
-                  render: (status: string) => (
-                    <Tag color={serviceStatusColor(status)}>{status}</Tag>
+                  dataIndex: 'state',
+                  key: 'state',
+                  render: (state: string) => (
+                    <Tag color={isServiceUp(state) ? 'success' : 'default'}>{state}</Tag>
                   ),
                 },
               ]}
@@ -193,10 +180,34 @@ const ClusterManagement: React.FC = () => {
           ) : (
             <Table
               dataSource={queries.map((q) => ({ ...q, key: q.queryId }))}
-              columns={columns}
+              columns={queryColumns}
               size="small"
               pagination={{ pageSize: 10 }}
               scroll={{ x: 'max-content' }}
+            />
+          )}
+        </Card>
+
+        <Card title="当前连接" size="small" style={{ marginTop: 24 }}>
+          {connections.length === 0 ? (
+            <Alert description="暂无连接" type="info" showIcon />
+          ) : (
+            <Table
+              dataSource={connections.map((c) => ({ ...c, key: `${c.dataNodeId}-${c.sessionId}` }))}
+              columns={[
+                { title: 'Client IP', dataIndex: 'clientIp', key: 'clientIp' },
+                { title: 'User', dataIndex: 'userName', key: 'userName' },
+                { title: 'Session', dataIndex: 'sessionId', key: 'sessionId' },
+                { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
+                {
+                  title: 'Last Active',
+                  dataIndex: 'lastActiveTime',
+                  key: 'lastActiveTime',
+                  render: (value: number) => formatMillis(value),
+                },
+              ]}
+              size="small"
+              pagination={{ pageSize: 10 }}
             />
           )}
         </Card>
