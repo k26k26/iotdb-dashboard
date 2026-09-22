@@ -37,6 +37,7 @@ interface TriggerForm {
   event: string;
   pathPattern: string;
   className: string;
+  jarUri?: string;
 }
 
 const TriggerManagement: React.FC = () => {
@@ -44,6 +45,7 @@ const TriggerManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [form] = Form.useForm();
   const { message } = AntdApp.useApp();
 
@@ -74,19 +76,25 @@ const TriggerManagement: React.FC = () => {
     fetchTriggers();
   }, []);
 
-  /** `WITH (…)` attributes and the `URI` clause are left out until a trigger jar needs them. */
+  /** `WITH (…)` attributes are still left out; only the jar URI is exposed. */
   const handleCreate = async (values: TriggerForm) => {
-    const { triggerName, triggerType, event, pathPattern, className } = values;
+    const { triggerName, triggerType, event, pathPattern, className, jarUri } = values;
+    const uri = jarUri?.trim() ? ` USING URI ${quote(jarUri.trim())}` : '';
     try {
       await nonQuery(
-        `CREATE ${triggerType} TRIGGER ${triggerName} ${event} ON ${pathPattern} AS ${quote(className)}`
+        `CREATE ${triggerType} TRIGGER ${triggerName} ${event} ON ${pathPattern} AS ${quote(className)}${uri}`
       );
       message.success('触发器创建成功');
+      setCreateError('');
       setModalOpen(false);
       form.resetFields();
       fetchTriggers();
     } catch (err: any) {
-      message.error(`创建失败: ${err.response?.data?.message || err.message}`);
+      const detail = err.response?.data?.message || err.message;
+      // A trigger is almost always refused server-side (class or jar missing); a toast that
+      // disappears in three seconds leaves the table looking broken rather than empty.
+      setCreateError(detail);
+      message.error(`创建失败: ${detail}`);
     }
   };
 
@@ -159,7 +167,7 @@ const TriggerManagement: React.FC = () => {
                     type="info"
                     showIcon
                     title="暂无触发器"
-                    description="查询成功，当前集群没有触发器。触发器由 DataNode 加载的 Java 类实现，需要先放置 jar 再执行 CREATE STATELESS TRIGGER；本机不支持 START / STOP TRIGGER，只能删除后重建。"
+                    description="查询成功，当前集群没有触发器。触发器是 DataNode 加载的 Java 类：要么把 jar 放进 DataNode 的触发器目录再创建，要么在下方「JAR 地址」里给出 URI —— 本机 trusted_uri_pattern 为 file:.*，只接受 DataNode 本地路径。本机也不支持 START / STOP TRIGGER，改配置只能删除后重建。"
                   />
                 ),
               }}
@@ -168,7 +176,24 @@ const TriggerManagement: React.FC = () => {
         </Spin>
       </Card>
 
-      <Modal title="创建触发器" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
+      <Modal
+        title="创建触发器"
+        open={modalOpen}
+        onCancel={() => {
+          setModalOpen(false);
+          setCreateError('');
+        }}
+        footer={null}
+      >
+        {createError && (
+          <Alert
+            type="error"
+            showIcon
+            title="服务端拒绝了这条 CREATE 语句"
+            description={createError}
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Form
           form={form}
           layout="vertical"
@@ -222,6 +247,13 @@ const TriggerManagement: React.FC = () => {
             rules={[{ required: true, message: '请输入触发器类的全限定名' }]}
           >
             <Input placeholder="org.example.trigger.MyTrigger" />
+          </Form.Item>
+          <Form.Item
+            name="jarUri"
+            label="JAR 地址"
+            extra="留空则由 DataNode 自行加载已放置的类；本机只信任 file: 前缀，所以填 DataNode 上的绝对路径，例如 file:/data/trigger/my.jar。"
+          >
+            <Input placeholder="file:/data/trigger/my.jar" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
