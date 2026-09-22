@@ -17,27 +17,41 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 
+interface ChartMarker {
+  /** The timestamp the marker sits on; the component resolves it to a category index. */
+  x: number;
+  y: number;
+}
+
 interface TimeSeriesChartProps {
   title: string;
+  subtitle?: string;
   xAxisData: number[];
   series: { name: string; data: any[] }[];
   height?: number;
+  markers?: ChartMarker[];
 }
 
-const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, xAxisData, series, height = 400 }) => {
+const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, subtitle, xAxisData, series, height = 400, markers }) => {
+  const marked = (markers || []).map((marker) => ({ index: xAxisData.indexOf(marker.x), y: marker.y })).filter(
+    (point) => point.index >= 0
+  );
+
   const option = {
-    title: { text: title, left: 'center' },
+    title: { text: title, subtext: subtitle, left: 'center' },
     tooltip: {
       trigger: 'axis',
       formatter: (params: any) => {
         let result = `Time: ${params[0].axisValue}<br/>`;
         params.forEach((param: any) => {
-          result += `${param.marker} ${param.seriesName}: ${param.value}<br/>`;
+          // A scatter point carries its [categoryIndex, value] pair, not a bare number.
+          const shown = Array.isArray(param.value) ? param.value[1] : param.value;
+          result += `${param.marker} ${param.seriesName}: ${shown}<br/>`;
         });
         return result;
       },
     },
-    legend: { data: series.map((s) => s.name), top: 30 },
+    legend: { data: [...series.map((s) => s.name), ...(marked.length ? ['异常点'] : [])], top: 30 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: {
       type: 'category',
@@ -46,13 +60,27 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, xAxisData, ser
       axisLabel: { formatter: (val: number) => new Date(val).toLocaleTimeString() },
     },
     yAxis: { type: 'value' },
-    series: series.map((s) => ({
-      name: s.name,
-      type: 'line',
-      data: s.data,
-      sampling: 'lttb',
-      showSymbol: false,
-    })),
+    series: [
+      ...series.map((s) => ({
+        name: s.name,
+        type: 'line',
+        data: s.data,
+        sampling: 'lttb',
+        showSymbol: false,
+      })),
+      ...(marked.length
+        ? [
+            {
+              name: '异常点',
+              type: 'scatter',
+              data: marked.map((point) => [point.index, point.y]),
+              symbolSize: 11,
+              itemStyle: { color: '#cf1322' },
+              z: 5,
+            },
+          ]
+        : []),
+    ],
     dataZoom: [
       { type: 'inside', start: 0, end: 100 },
       { type: 'slider', start: 0, end: 100, height: 20 },
