@@ -42,8 +42,10 @@ interface DatabaseRow {
 const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
 
 /**
- * LOAD takes one quoted literal, so the path may not carry a quote, a backslash or a space --
- * otherwise the value the user typed would end the string and start writing SQL.
+ * LOAD takes one quoted literal, so the path may not carry a quote -- the value the user typed would
+ * end the string and start writing SQL. Backslashes go too: the server answers those with a bare
+ * HTTP 500 (verified: `LOAD 'D:\file\x.tsfile'` never reaches the engine), so a Windows path cannot be
+ * sent even though it would be meaningless on the node anyway -- paths resolve on the server's host.
  */
 const LOAD_PATH = /^[^'"\\\s]+$/;
 
@@ -225,11 +227,15 @@ const BackupRecovery: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={load}>
           <Form.Item
             name="path"
-            label="DataNode 主机上的文件路径"
-            extra="路径由服务端在它自己那台机器上解析，相对名会按它的工作目录补齐；不能含空格、引号和反斜杠。"
+            label="TsFile 在 IoTDB 主机上的路径"
+            extra="这是服务端那台机器上的路径，不是你浏览器这台机器的——文件得先在 DataNode 主机上；只写文件名时它按服务端工作目录补齐（本节点是 /opt/soft/apache-iotdb-2.0.11-all-bin/sbin/）。"
             rules={[
               { required: true, message: '请输入 TsFile 路径' },
-              { pattern: LOAD_PATH, message: '路径不能包含空格、单引号、双引号或反斜杠' },
+              {
+                pattern: LOAD_PATH,
+                message:
+                  '不能含空格、单引号、双引号或反斜杠：带反斜杠的请求服务端直接回 HTTP 500，所以 D:\\file 这种写法要先换成服务器上的真实路径',
+              },
             ]}
           >
             <Input placeholder="/data/backup/node1/1-0-0.tsfile" />
