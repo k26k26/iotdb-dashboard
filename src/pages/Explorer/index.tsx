@@ -15,12 +15,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Tree, Input, Spin, Button, message } from 'antd';
+import { App as AntdApp, Card, Tree, Input, Spin, Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { node } from '../../services/grafana';
-import { query } from '../../services/rest';
+import { query, assertRestOk } from '../../services/rest';
 
 const { Search } = Input;
+
+const ROOT_PATH = 'root';
 
 interface TreeNode {
   title: string;
@@ -29,47 +30,62 @@ interface TreeNode {
   children?: TreeNode[];
 }
 
+// SHOW CHILD NODES reports the child names, so the full path has to be rebuilt here —
+// feeding a bare name back in is a parse error on the server.
+const loadChildren = async (parent: string): Promise<TreeNode[]> => {
+  const result = await query(`SHOW CHILD NODES ${parent}`);
+  assertRestOk(result);
+  const names = Array.isArray(result.values) && Array.isArray(result.values[0]) ? result.values[0] : [];
+  return names.map((name) => ({
+    title: String(name),
+    key: `${parent}.${name}`,
+    isLeaf: false,
+  }));
+};
+
 const Explorer: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [searchValue, setSearchValue] = useState('');
+  const { message } = AntdApp.useApp();
 
-  const loadNodes = async (paths: string[]): Promise<TreeNode[]> => {
+  const refresh = async () => {
+    setLoading(true);
     try {
-      const children = await node(paths);
-      return children.map((path: string) => {
-        const parts = path.split('.');
-        const name = parts[parts.length - 1];
-        return {
-          title: name,
-          key: path,
-          isLeaf: false,
-        };
-      });
-    } catch (error) {
-      console.error('Failed to load nodes:', error);
-      return [];
+      setTreeData(await loadChildren(ROOT_PATH));
+    } catch (error: any) {
+      message.error(`加载路径失败: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const onLoadData = async ({ key }: { key: string }) => {
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const onLoadData = async ({ key }: { key: React.Key }) => {
     setLoading(true);
-    const children = await loadNodes([key]);
-    setTreeData((prev) => {
-      const updateTree = (nodes: TreeNode[]): TreeNode[] => {
-        return nodes.map((node) => {
-          if (node.key === key) {
-            return { ...node, children, isLeaf: children.length === 0 };
-          }
-          if (node.children) {
-            return { ...node, children: updateTree(node.children) };
-          }
-          return node;
-        });
-      };
-      return updateTree(prev);
-    });
-    setLoading(false);
+    try {
+      const children = await loadChildren(String(key));
+      setTreeData((prev) => {
+        const update = (nodes: TreeNode[]): TreeNode[] =>
+          nodes.map((node) => {
+            if (node.key === key) {
+              return { ...node, children, isLeaf: children.length === 0 };
+            }
+            if (node.children) {
+              return { ...node, children: update(node.children) };
+            }
+            return node;
+          });
+        return update(prev);
+      });
+    } catch (error: any) {
+      message.error(`加载子节点失败: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onSelect = (_selectedKeys: React.Key[]) => {
@@ -80,28 +96,20 @@ const Explorer: React.FC = () => {
     if (!searchValue.trim()) return;
     setLoading(true);
     try {
-      await query(`SHOW TIMESERIES ${searchValue}`);
-      message.success('搜索完成');
-    } catch (error) {
-      message.error('搜索失败');
+      const result = await query(`SHOW TIMESERIES ${searchValue}`);
+      assertRestOk(result);
+      const count = Array.isArray(result.values) && Array.isArray(result.values[0]) ? result.values[0].length : 0;
+      message.success(count ? `找到 ${count} 条时间序列` : '没有找到匹配的时间序列');
+    } catch (error: any) {
+      message.error(`搜索失败: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const initTree = async () => {
-      setLoading(true);
-      const rootNodes = await loadNodes(['root']);
-      setTreeData(rootNodes);
-      setLoading(false);
-    };
-    initTree();
-  }, []);
-
   return (
     <div>
-      <Card title="路径浏览器" size="small" extra={<Button icon={<ReloadOutlined />}>刷新</Button>}>
+      <Card title="路径浏览器" size="small" extra={<Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>}>
         <Search
           placeholder="搜索路径..."
           value={searchValue}
