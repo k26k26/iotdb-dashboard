@@ -15,14 +15,15 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, message, Space, Popconfirm, Spin } from 'antd';
+import { App as AntdApp, Card, Table, Button, Modal, Form, Input, InputNumber, Space, Popconfirm, Spin } from 'antd';
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
-import { query, nonQuery } from '../../services/rest';
+import { query, nonQuery, assertRestOk } from '../../services/rest';
 
 interface DatabaseInfo {
   database: string;
-  schema: string;
-  ttl?: number;
+  schemaReplicationFactor?: number;
+  dataReplicationFactor?: number;
+  timePartitionInterval?: number;
 }
 
 const DatabaseManagement: React.FC = () => {
@@ -30,20 +31,34 @@ const DatabaseManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
 
   const fetchDatabases = async () => {
     setLoading(true);
     try {
       const result = await query('SHOW DATABASES');
-      const values = Array.isArray(result?.values) ? result.values : [];
+      assertRestOk(result);
+      const columns = Array.isArray(result.column_names) ? result.column_names : [];
+      const table = Array.isArray(result.values) ? result.values : [];
+      // values is column-oriented: one array per column, addressed by name from column_names.
+      const columnOf = (name: string): any[] => {
+        const index = columns.indexOf(name);
+        return index >= 0 && Array.isArray(table[index]) ? table[index] : [];
+      };
+      const names = columnOf('Database');
+      const schemaReplicas = columnOf('SchemaReplicationFactor');
+      const dataReplicas = columnOf('DataReplicationFactor');
+      const partitions = columnOf('TimePartitionInterval');
       setDatabases(
-        values.map((row) => ({
-          database: row[0],
-          schema: row[1] || '',
+        names.map((database, i) => ({
+          database: String(database),
+          schemaReplicationFactor: schemaReplicas[i],
+          dataReplicationFactor: dataReplicas[i],
+          timePartitionInterval: partitions[i],
         }))
       );
-    } catch (error) {
-      message.error('获取数据库列表失败');
+    } catch (error: any) {
+      message.error(`获取数据库列表失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -80,7 +95,21 @@ const DatabaseManagement: React.FC = () => {
 
   const columns = [
     { title: '数据库名', dataIndex: 'database', key: 'database' },
-    { title: 'Schema', dataIndex: 'schema', key: 'schema' },
+    {
+      title: 'Schema 副本数',
+      dataIndex: 'schemaReplicationFactor',
+      key: 'schemaReplicationFactor',
+    },
+    {
+      title: '数据副本数',
+      dataIndex: 'dataReplicationFactor',
+      key: 'dataReplicationFactor',
+    },
+    {
+      title: '时间分区间隔 (ms)',
+      dataIndex: 'timePartitionInterval',
+      key: 'timePartitionInterval',
+    },
     {
       title: '操作',
       key: 'action',
