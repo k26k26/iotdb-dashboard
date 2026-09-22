@@ -15,36 +15,29 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Spin, Alert } from 'antd';
+import { App as AntdApp, Alert, Button, Card, Spin, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { query } from '../../services/rest';
+import { getConfigurations } from '../../services/metadata';
+import type { ConfigInfo } from '../../types/api';
+
+const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
 
 const ConfigManagement: React.FC = () => {
-  const [configs, setConfigs] = useState<{ key: string; value: string }[]>([]);
-  const [variables, setVariables] = useState<{ key: string; value: string }[]>([]);
+  const [configs, setConfigs] = useState<ConfigInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { message } = AntdApp.useApp();
 
   const fetchConfigs = async () => {
     setLoading(true);
     try {
-      const result = await query('SHOW CONFIGURATION');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setConfigs(values.map((row) => ({ key: row[0], value: String(row[1]) })));
-    } catch (error) {
-      message.error('获取配置失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchVariables = async () => {
-    setLoading(true);
-    try {
-      const result = await query('SHOW VARIABLES');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setVariables(values.map((row) => ({ key: row[0], value: String(row[1]) })));
-    } catch (error) {
-      message.error('获取变量失败');
+      setConfigs(await getConfigurations());
+      setError('');
+    } catch (err: any) {
+      setConfigs([]);
+      const detail = describe(err);
+      setError(detail);
+      message.error(`获取配置失败: ${detail}`);
     } finally {
       setLoading(false);
     }
@@ -52,7 +45,6 @@ const ConfigManagement: React.FC = () => {
 
   useEffect(() => {
     fetchConfigs();
-    fetchVariables();
   }, []);
 
   return (
@@ -61,41 +53,28 @@ const ConfigManagement: React.FC = () => {
         title="系统配置"
         size="small"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={() => { fetchConfigs(); fetchVariables(); }}>
+          <Button icon={<ReloadOutlined />} onClick={fetchConfigs}>
             刷新
           </Button>
         }
       >
         <Spin spinning={loading}>
-          {configs.length === 0 ? (
-            <Alert description="暂无配置信息" type="info" showIcon />
+          {error ? (
+            <Alert type="error" showIcon title="无法读取集群参数" description={error} />
           ) : (
             <Table
               dataSource={configs}
+              rowKey="variable"
               columns={[
-                { title: 'Key', dataIndex: 'key', key: 'key' },
-                { title: 'Value', dataIndex: 'value', key: 'value' },
+                { title: '参数名', dataIndex: 'variable', key: 'variable', width: 320 },
+                { title: '参数值', dataIndex: 'value', key: 'value' },
               ]}
               size="small"
               pagination={false}
-            />
-          )}
-        </Spin>
-      </Card>
-
-      <Card title="系统变量" size="small" style={{ marginTop: 24 }}>
-        <Spin spinning={loading}>
-          {variables.length === 0 ? (
-            <Alert description="暂无变量信息" type="info" showIcon />
-          ) : (
-            <Table
-              dataSource={variables}
-              columns={[
-                { title: 'Key', dataIndex: 'key', key: 'key' },
-                { title: 'Value', dataIndex: 'value', key: 'value' },
-              ]}
-              size="small"
-              pagination={false}
+              scroll={{ x: 'max-content' }}
+              locale={{
+                emptyText: <Alert type="info" showIcon title="集群没有返回任何参数" description="查询成功，但 information_schema.configurations 是空表。" />,
+              }}
             />
           )}
         </Spin>

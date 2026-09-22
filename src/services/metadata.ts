@@ -21,6 +21,7 @@ import type {
   ConnectionInfo,
   CurrentQuery,
   PipeInfo,
+  ConfigInfo,
 } from '../types/api';
 
 const fromSchema = (table: string, where?: string) =>
@@ -146,4 +147,15 @@ export const getDiskUsage = async (): Promise<any[]> => {
     partition: row.time_partition,
     diskUsage: row.size_in_bytes,
   }));
+};
+
+/**
+ * The cluster parameters. `SHOW CONFIGURATION` is not a statement either REST model parses, and the
+ * tree model's `SHOW VARIABLES` answers the same rows, so this view is the whole configuration.
+ */
+export const getConfigurations = async (): Promise<ConfigInfo[]> => {
+  const rows = await fromSchema('configurations');
+  return rows.map(
+    (row) => ({ variable: row.variable, value: row.value }) as ConfigInfo,
+  );
 };

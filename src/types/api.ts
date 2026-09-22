@@ -142,6 +142,15 @@ export interface CqInfo {
   state: string;
 }
 
+/**
+ * information_schema.configurations -- the cluster's parameters. The tree model's `SHOW VARIABLES`
+ * answers the same rows, so there is only one configuration surface to show.
+ */
+export interface ConfigInfo {
+  variable: string;
+  value: string;
+}
+
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
