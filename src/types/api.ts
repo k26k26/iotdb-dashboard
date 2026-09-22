@@ -91,6 +91,12 @@ export interface CurrentQuery {
   clientIp: string;
 }
 
+/** LIST USER -- `LIST ROLE` has no counterpart for per-user grants on this grammar. */
+export interface UserInfo {
+  userId: number;
+  username: string;
+}
+
 /** SHOW REGIONS -- per-region slot assignment and storage usage. */
 export interface RegionInfo {
   regionId: number;

@@ -15,29 +15,37 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Space, Spin, Modal, Form, Input, Select, Popconfirm } from 'antd';
+import { App as AntdApp, Card, Table, Button, Space, Spin, Modal, Form, Input, Select, Popconfirm, Alert } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { query, nonQuery } from '../../services/rest';
+import { queryRows, nonQuery } from '../../services/rest';
+import type { UserInfo } from '../../types/api';
 
-interface UserInfo {
-  username: string;
-  role?: string;
-}
+/** Only the password is a string literal; role and user names are identifiers. */
+const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<UserInfo[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const result = await query('LIST USERS');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setUsers(values.map((row) => ({ username: row[0] })));
-    } catch (error) {
-      message.error('获取用户列表失败');
+      const [userRows, roleRows] = await Promise.all([queryRows('LIST USER'), queryRows('LIST ROLE')]);
+      setUsers(
+        userRows.map(
+          (row) =>
+            ({ userId: Number(row.UserId), username: String(row.User) }) as UserInfo
+        )
+      );
+      setRoles(roleRows.map((row) => String(row.Role)));
+      setError('');
+    } catch (err: any) {
+      setError(`获取用户列表失败: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -49,9 +57,9 @@ const UserManagement: React.FC = () => {
 
   const handleCreate = async (values: any) => {
     try {
-      await nonQuery(`CREATE USER ${values.username} WITH PASSWORD '${values.password}'`);
+      await nonQuery(`CREATE USER ${values.username} ${quote(values.password)}`);
       if (values.role) {
-        await nonQuery(`GRANT ${values.role} TO ${values.username}`);
+        await nonQuery(`GRANT ROLE \`${values.role}\` TO ${values.username}`);
       }
       message.success('用户创建成功');
       setModalOpen(false);
@@ -73,6 +81,7 @@ const UserManagement: React.FC = () => {
   };
 
   const columns = [
+    { title: '用户 ID', dataIndex: 'userId', key: 'userId' },
     { title: '用户名', dataIndex: 'username', key: 'username' },
     {
       title: '操作',
@@ -80,7 +89,9 @@ const UserManagement: React.FC = () => {
       render: (_: any, record: UserInfo) => (
         <Space>
           <Popconfirm title="确定删除该用户吗？" onConfirm={() => handleDelete(record.username)}>
-            <Button type="link" danger>删除</Button>
+            <Button type="link" danger>
+              删除
+            </Button>
           </Popconfirm>
         </Space>
       ),
@@ -104,33 +115,49 @@ const UserManagement: React.FC = () => {
         }
       >
         <Spin spinning={loading}>
-          <Table
-            dataSource={users.map((u) => ({ ...u, key: u.username }))}
-            columns={columns}
-            size="small"
-            pagination={{ pageSize: 20 }}
-          />
+          {error ? (
+            <Alert type="error" showIcon title={error} />
+          ) : (
+            <Table
+              dataSource={users}
+              rowKey="userId"
+              columns={columns}
+              size="small"
+              pagination={{ pageSize: 20 }}
+            />
+          )}
         </Spin>
       </Card>
 
-      <Modal
-        title="创建用户"
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-      >
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input placeholder="root" />
+      <Modal title="创建用户" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
+        <Form form={form} layout="vertical" onFinish={handleCreate} initialValues={{ role: undefined }}>
+          <Form.Item
+            name="username"
+            label="用户名"
+            rules={[
+              { required: true, message: '请输入用户名' },
+              {
+                pattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
+                message: '仅限字母、数字和下划线，且不能以数字开头',
+              },
+            ]}
+          >
+            <Input placeholder="manager_a" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
             <Input.Password placeholder="******" />
           </Form.Item>
-          <Form.Item name="role" label="角色">
+          <Form.Item
+            name="role"
+            label="角色"
+            extra={roles.length ? undefined : '集群还没有角色，可先执行 CREATE ROLE 再回来授权。'}
+          >
             <Select allowClear placeholder="请选择角色">
-              <Select.Option value="ROOT">ROOT</Select.Option>
-              <Select.Option value="ADMIN">ADMIN</Select.Option>
-              <Select.Option value="USER">USER</Select.Option>
+              {roles.map((role) => (
+                <Select.Option key={role} value={role}>
+                  {role}
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item>
