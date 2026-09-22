@@ -15,7 +15,7 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, theme } from 'antd';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -56,6 +56,7 @@ function App() {
 
   return (
     <ConfigProvider locale={zhCN} theme={{ algorithm }}>
+      <AntdApp>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<AppLayout />}>
@@ -93,6 +94,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </AntdApp>
     </ConfigProvider>
   );
 }

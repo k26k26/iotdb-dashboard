@@ -60,7 +60,7 @@ const AppLayout: React.FC = () => {
 
   const menuItems = [
     {
-      key: '/',
+      key: 'core-group',
       icon: <DashboardOutlined />,
       label: '核心功能',
       children: [

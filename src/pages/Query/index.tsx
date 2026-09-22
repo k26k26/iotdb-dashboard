@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import React, { useState, useCallback } from 'react';
-import { Card, Button, Space, Table, message, Row, Col } from 'antd';
+import React, { useState, useCallback, useMemo } from 'react';
+import { App as AntdApp, Card, Button, Space, Table, Row, Col, Empty } from 'antd';
 import { PlayCircleOutlined, ExportOutlined, ClearOutlined } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import { query } from '../../services/rest';
@@ -23,11 +23,46 @@ import { useQueryStore } from '../../stores/query';
 import type { QueryResult } from '../../types/api';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
 
+interface Field {
+  title: string;
+  key: string;
+}
+
+// /rest/v2/query answers column-oriented: values[colIndex][rowIndex]. Time is only ever in
+// `timestamps`, and only the SHOW-style responses fill `column_names` -- a SELECT comes back
+// with the names in `expressions` instead.
+function shapeResult(result: QueryResult) {
+  const cols = Array.isArray(result.values) ? result.values : [];
+  const times = Array.isArray(result.timestamps) ? result.timestamps : [];
+  const columnNames = Array.isArray(result.column_names) ? result.column_names : [];
+  const expressions = Array.isArray(result.expressions) ? result.expressions : [];
+  const named = columnNames.length ? columnNames : expressions;
+  const names = named.length ? named : cols.map((_, j) => `column ${j + 1}`);
+  const hasTime = times.length > 0;
+
+  const fields: Field[] = [
+    ...(hasTime ? [{ title: 'Time', key: '__time' }] : []),
+    ...names.map((name, j) => ({ title: name, key: `c${j}` })),
+  ];
+  const rowCount = hasTime ? times.length : (cols[0]?.length ?? 0);
+  const rows = Array.from({ length: rowCount }, (_, i) => {
+    const row: Record<string, unknown> = { key: i };
+    if (hasTime) row.__time = times[i];
+    names.forEach((_, j) => {
+      row[`c${j}`] = cols[j]?.[i] ?? null;
+    });
+    return row;
+  });
+
+  return { fields, rows, hasTime };
+}
+
 const Query: React.FC = () => {
   const [sql, setSql] = useState('SELECT s1, s2 FROM root.sg.d1 LIMIT 100');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
   const { addHistory } = useQueryStore();
+  const { message } = AntdApp.useApp();
 
   const handleExecute = useCallback(async () => {
     if (!sql.trim()) {
@@ -41,63 +76,52 @@ const Query: React.FC = () => {
       const duration = Date.now() - startTime;
       setResult(res);
       useQueryStore.getState().setCurrentResult(res);
+      const rowCount = shapeResult(res).rows.length;
       addHistory({
         id: Date.now().toString(),
         sql,
         timestamp: Date.now(),
         duration,
-        rowCount: res.timestamps.length,
+        rowCount,
       });
-      message.success(`查询成功，返回 ${res.timestamps.length} 行`);
+      message.success(`查询成功，返回 ${rowCount} 行`);
     } catch (error: any) {
       message.error(`查询失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [sql, addHistory]);
+  }, [sql, addHistory, message]);
+
+  const { fields, rows, hasTime } = useMemo(
+    () => (result ? shapeResult(result) : { fields: [] as Field[], rows: [], hasTime: false }),
+    [result]
+  );
 
   const handleExportCSV = () => {
     if (!result) return;
-    const headers = result.column_names.join(',');
-    const values = Array.isArray(result?.values) ? result.values : [];
-    const rows = result.timestamps.map((ts, i) => {
-      const rowValues = values[i] ? values[i].map((v) => `"${v}"`).join(',') : '';
-      return `${ts},${rowValues}`;
-    });
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      fields.map((f) => cell(f.title)).join(','),
+      ...rows.map((row) => fields.map((f) => cell(row[f.key])).join(',')),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `query_result_${Date.now()}.csv`;
     link.click();
   };
 
-  const columns = result
-    ? result.column_names.map((col) => ({
-        title: col,
-        dataIndex: col,
-        key: col,
-        sorter: (a: any, b: any) => {
-          const valA = a[col];
-          const valB = b[col];
-          if (typeof valA === 'number' && typeof valB === 'number') return valA - valB;
-          return String(valA).localeCompare(String(valB));
-        },
-      }))
-    : [];
-
-  const dataSource = result
-    ? result.timestamps.map((ts, i) => {
-        const values = Array.isArray(result?.values) ? result.values : [];
-        return {
-          key: ts,
-          ...result.column_names.reduce((acc, col, j) => {
-            acc[col] = j === 0 ? ts : values[i]?.[j - 1];
-            return acc;
-          }, {} as Record<string, any>),
-        };
-      })
-    : [];
+  const columns = fields.map((f) => ({
+    title: f.title,
+    dataIndex: f.key,
+    key: f.key,
+    sorter: (a: Record<string, any>, b: Record<string, any>) => {
+      const valA = a[f.key];
+      const valB = b[f.key];
+      if (typeof valA === 'number' && typeof valB === 'number') return valA - valB;
+      return String(valA ?? '').localeCompare(String(valB ?? ''));
+    },
+  }));
 
   return (
     <div>
@@ -136,7 +160,7 @@ const Query: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card title="结果表格" size="small">
               <Table
-                dataSource={dataSource}
+                dataSource={rows}
                 columns={columns}
                 size="small"
                 scroll={{ x: 'max-content' }}
@@ -146,17 +170,18 @@ const Query: React.FC = () => {
           </Col>
           <Col xs={24} lg={12}>
             <Card title="时序曲线" size="small">
-              <TimeSeriesChart
-                title={sql}
-                xAxisData={result.timestamps}
-                series={result.column_names
-                  .slice(1)
-                  .map((name, i) => {
-                    const values = Array.isArray(result?.values) ? result.values : [];
-                    return { name, data: values.map((v) => v[i]) };
-                  })}
-                height={400}
-              />
+              {hasTime ? (
+                <TimeSeriesChart
+                  title={sql}
+                  xAxisData={result.timestamps}
+                  series={fields
+                    .filter((f) => f.key !== '__time')
+                    .map((f) => ({ name: f.title, data: rows.map((row) => row[f.key]) }))}
+                  height={400}
+                />
+              ) : (
+                <Empty description="结果没有时间轴，无法绘制时序曲线" />
+              )}
             </Card>
           </Col>
         </Row>
