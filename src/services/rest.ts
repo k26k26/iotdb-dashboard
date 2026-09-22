@@ -84,6 +84,7 @@ export const nonQuery = async (sql: string): Promise<void> => {
 
 export const fastLastQuery = async (prefixPaths: string[]): Promise<any> => {
   const response = await iotdb.post('/rest/v2/fastLastQuery', { prefix_paths: prefixPaths });
+  assertRestOk(response.data);
   return response.data;
 };
 

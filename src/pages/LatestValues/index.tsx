@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Spin, Alert, Button, message, Typography } from 'antd';
+import { App as AntdApp, Card, Row, Col, Spin, Alert, Button, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { fastLastQuery } from '../../services/rest';
 
@@ -30,20 +30,32 @@ interface LatestValue {
 const LatestValues: React.FC = () => {
   const [values, setValues] = useState<LatestValue[]>([]);
   const [loading, setLoading] = useState(false);
+  const { message } = AntdApp.useApp();
 
   const fetchLatest = async () => {
     setLoading(true);
     try {
       const data = await fastLastQuery(['root']);
-      const rawValues = Array.isArray(data?.values) ? data.values : [];
-      const mapped: LatestValue[] = rawValues.map((row: any) => ({
-        path: row[0],
-        value: row[1],
-        timestamp: row[2],
-      }));
-      setValues(mapped);
-    } catch (error) {
-      message.error('获取最新值失败');
+      // fastLastQuery is column-oriented too: one array per entry of `expressions`
+      // (Timeseries / Value / DataType), with every row's time in `timestamps`.
+      const names = Array.isArray(data?.expressions) ? data.expressions : [];
+      const table = Array.isArray(data?.values) ? data.values : [];
+      const times = Array.isArray(data?.timestamps) ? data.timestamps : [];
+      const columnOf = (name: string): any[] => {
+        const index = names.indexOf(name);
+        return index >= 0 && Array.isArray(table[index]) ? table[index] : [];
+      };
+      const paths = columnOf('Timeseries');
+      const latest = columnOf('Value');
+      setValues(
+        paths.map((path, i) => ({
+          path: String(path),
+          value: latest[i] ?? '',
+          timestamp: typeof times[i] === 'number' ? times[i] : undefined,
+        }))
+      );
+    } catch (error: any) {
+      message.error(`获取最新值失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -74,7 +86,12 @@ const LatestValues: React.FC = () => {
               {values.map((item) => (
                 <Col xs={24} sm={12} lg={8} key={item.path}>
                   <Card size="small" type="inner">
-                    <Text type="secondary">{item.path}</Text>
+                    {/* Paths are device-length (root.<db>.<tenant>.<item>.<measurement>) and far
+                        wider than a third-column card. Ellipsis would cut every card at the same
+                        offset and hide the tail that tells them apart, so wrap instead. */}
+                    <Text type="secondary" style={{ display: 'block', wordBreak: 'break-all' }}>
+                      {item.path}
+                    </Text>
                     <div style={{ fontSize: 24, fontWeight: 'bold', marginTop: 8 }}>
                       {item.value}
                     </div>
