@@ -56,7 +56,7 @@ The REST base URL is then built directly from the host and port you enter in the
 Please read before pointing this at anything that matters:
 
 - **Not production-ready for exposed networks.** Credentials are held in `localStorage` and sent as HTTP Basic auth over plain HTTP unless you terminate TLS yourself.
-- Default connection values are `localhost:18080` with `root/root`; the app never forces a credential change.
+- Default connection values are `192.168.77.245:18080` with `root/root` — the author's LAN development node, which you will not be able to reach. A host you saved earlier wins over these defaults and is kept in `localStorage` under the `iotdb-connection` key, so change it in the **连接配置** dialog in the header. Never point this app at a node you have not secured; the app does not force a credential change.
 - The `/ai` page is a stub — it shows "AI 分析功能开发中，敬请期待" and calls no API. Every other page imports the services layer, but how completely each call is wired has not been audited page by page, so treat a blank panel as "unverified", not "no results".
 - No unit tests yet. CI covers type-checking, linting, build and license headers only.
 

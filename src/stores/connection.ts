@@ -29,11 +29,14 @@ interface ConnectionState {
   testConnection: () => Promise<boolean>;
 }
 
+export const DEFAULT_HOST = '192.168.77.245';
+export const DEFAULT_PORT = 18080;
+
 export const useConnectionStore = create<ConnectionState>()(
   persist(
     (set, get) => ({
-      host: 'localhost',
-      port: 18080,
+      host: DEFAULT_HOST,
+      port: DEFAULT_PORT,
       username: 'root',
       password: 'root',
       isConnected: false,

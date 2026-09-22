@@ -17,9 +17,11 @@
 import React from 'react';
 import { Card, Form, Input, InputNumber, Switch, Select, Button, message } from 'antd';
 import { useSettingsStore } from '../../stores/settings';
+import { useConnectionStore } from '../../stores/connection';
 
 const Settings: React.FC = () => {
   const { theme, language, maxRows, autoRefresh, refreshInterval, setTheme, setLanguage, setMaxRows, setAutoRefresh, setRefreshInterval } = useSettingsStore();
+  const { host, port, username } = useConnectionStore();
 
   const handleSaveSettings = () => {
     message.success('设置已保存');
@@ -30,19 +32,19 @@ const Settings: React.FC = () => {
       <Card title="连接配置" style={{ marginBottom: 16 }}>
         <Form layout="vertical">
           <Form.Item label="Host">
-            <Input defaultValue="localhost" />
+            <Input defaultValue={host} />
           </Form.Item>
           <Form.Item label="Port">
-            <InputNumber min={1} max={65535} defaultValue={18080} />
+            <InputNumber min={1} max={65535} defaultValue={port} />
           </Form.Item>
           <Form.Item label="Username">
-            <Input defaultValue="root" />
+            <Input defaultValue={username} />
           </Form.Item>
           <Form.Item label="Password">
-            <Input.Password />
+            <Input.Password placeholder="不会回显已保存的密码" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" onClick={() => message.success('连接配置已更新')}>
+            <Button type="primary" onClick={() => message.info('连接参数请使用顶栏的「连接配置」，此处仅展示当前生效的配置')}>
               保存连接配置
             </Button>
           </Form.Item>
