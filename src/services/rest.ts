@@ -88,8 +88,19 @@ export const fastLastQuery = async (prefixPaths: string[]): Promise<any> => {
   return response.data;
 };
 
-export const insertTablet = async (data: any): Promise<void> => {
-  await iotdb.post('/rest/v2/insertTablet', data);
+export interface InsertTabletRequest {
+  timestamps: number[];
+  measurements: string[];
+  data_types: string[];
+  /** Column-oriented: one array per measurement, each as long as `timestamps`. */
+  values: (string | number | boolean | null)[][];
+  is_aligned: boolean;
+  device: string;
+}
+
+export const insertTablet = async (data: InsertTabletRequest): Promise<void> => {
+  const response = await iotdb.post('/rest/v2/insertTablet', data);
+  assertRestOk(response.data);
 };
 
 export const insertRecords = async (data: any): Promise<void> => {
