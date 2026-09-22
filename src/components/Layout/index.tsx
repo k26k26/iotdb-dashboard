@@ -122,7 +122,7 @@ const AppLayout: React.FC = () => {
       icon: <SettingOutlined />,
       label: '企业特性',
       children: [
-        { key: '/tenant', icon: <UserOutlined />, label: '多租户管理' },
+        { key: '/tenant', icon: <UserOutlined />, label: '租户与配额' },
         { key: '/high-availability', icon: <CloudServerOutlined />, label: '高可用监控' },
         { key: '/audit', icon: <FileTextOutlined />, label: '审计日志' },
         { key: '/backup', icon: <SaveOutlined />, label: '备份恢复' },
