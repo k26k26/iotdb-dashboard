@@ -14,124 +14,239 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Spin, Alert, Tag, Statistic, Row, Col, Typography } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  App as AntdApp,
+  Alert,
+  Button,
+  Card,
+  Col,
+  Row,
+  Spin,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { query } from '../../services/rest';
+import { queryRows } from '../../services/rest';
 
 const { Title } = Typography;
 
-interface ClusterHealth {
-  nodeId: string;
-  status: string;
-  role: string;
-  uptime: number;
-  lastHeartbeat: number;
+const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
+
+/** The consensus classes arrive as Java FQCNs; only the last segment is worth reading. */
+const protocol = (fqcn: unknown): string =>
+  typeof fqcn === 'string' && fqcn ? fqcn.split('.').pop() || fqcn : '-';
+
+const isRunning = (status: unknown): boolean => String(status) === 'Running';
+
+interface DbHealth {
+  database: string;
+  schemaReplication: string;
+  dataReplication: string;
+  schemaRegions: number;
+  dataRegions: number;
+  nodes: string[];
+  unhealthy: number;
+  required: number;
 }
 
-const HighAvailability: React.FC = () => {
-  const [health, setHealth] = useState<ClusterHealth[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [score, setScore] = useState(0);
+/**
+ * Redundancy is per-database: the factors come from SHOW DATABASES and the placement from SHOW REGIONS.
+ * A database only survives a node loss when that many distinct DataNodes actually hold its regions, so
+ * a factor of 2 on a one-node cluster is not redundancy.
+ */
+const verdictOf = (row: DbHealth): { text: string; color: string } => {
+  if (row.unhealthy) return { text: `${row.unhealthy} 个 region 非 Running`, color: 'error' };
+  if (row.required <= 1) return { text: '单点：承载节点宕机即中断', color: 'warning' };
+  if (row.nodes.length < row.required) {
+    return { text: `副本不足：需要 ${row.required} 个节点，只有 ${row.nodes.length} 个`, color: 'error' };
+  }
+  return { text: '有冗余', color: 'success' };
+};
 
-  const fetchHealth = async () => {
+const HighAvailability: React.FC = () => {
+  const [nodes, setNodes] = useState<Record<string, any>[]>([]);
+  const [databases, setDatabases] = useState<Record<string, any>[]>([]);
+  const [regions, setRegions] = useState<Record<string, any>[]>([]);
+  const [vars, setVars] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const { message } = AntdApp.useApp();
+
+  const fetchAll = useCallback(async () => {
     setLoading(true);
-    try {
-      const result = await query('SHOW CLUSTER');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      const mapped: ClusterHealth[] = values.map((row) => ({
-        nodeId: row[0],
-        status: row[1] || 'Unknown',
-        role: row[2] || '',
-        uptime: row[3] || 0,
-        lastHeartbeat: row[4] || Date.now(),
-      }));
-      setHealth(mapped);
-      const healthyCount = mapped.filter((h) => h.status === 'Running' || h.status === 'Normal').length;
-      setScore(mapped.length > 0 ? Math.round((healthyCount / mapped.length) * 100) : 0);
-    } catch (error) {
-      message.error('获取集群健康状态失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const statements = ['SHOW CLUSTER', 'SHOW DATABASES', 'SHOW REGIONS', 'SHOW VARIABLES'];
+    const settled = await Promise.allSettled(statements.map((sql) => queryRows(sql)));
+    const failed: string[] = [];
+    settled.forEach((entry, i) => {
+      if (entry.status === 'rejected') failed.push(`${statements[i]}: ${describe(entry.reason)}`);
+    });
+    const lists = settled.map((entry) => (entry.status === 'fulfilled' ? entry.value : []));
+    const [cluster, dbs, regs, variables] = lists;
+    setNodes(cluster);
+    setDatabases(dbs);
+    setRegions(regs);
+    setVars(Object.fromEntries(variables.map((row) => [String(row.Variable), row.Value])));
+    setErrors(failed);
+    setLoading(false);
+    if (failed.length) message.error(`部分数据加载失败: ${failed[0]}`);
+  }, [message]);
 
   useEffect(() => {
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 5000);
+    fetchAll();
+    const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchAll]);
 
-  const columns = [
-    { title: '节点 ID', dataIndex: 'nodeId', key: 'nodeId' },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => <Tag color={status === 'Running' || status === 'Normal' ? 'success' : 'error'}>{status}</Tag>,
-    },
-    { title: '角色', dataIndex: 'role', key: 'role' },
-    {
-      title: '运行时间',
-      dataIndex: 'uptime',
-      key: 'uptime',
-      render: (uptime: number) => `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-    },
-    {
-      title: '最后心跳',
-      dataIndex: 'lastHeartbeat',
-      key: 'lastHeartbeat',
-      render: (ts: number) => new Date(ts).toLocaleTimeString(),
-    },
-  ];
+  const healthy = nodes.filter((node) => isRunning(node.Status)).length;
+
+  const health: DbHealth[] = databases.map((db) => {
+    const database = String(db.Database ?? '');
+    const owned = regions.filter((region) => String(region.Database ?? '') === database);
+    const schemaRF = Number(db.SchemaReplicationFactor) || 0;
+    const dataRF = Number(db.DataReplicationFactor) || 0;
+    return {
+      database,
+      schemaReplication: String(db.SchemaReplicationFactor ?? '-'),
+      dataReplication: String(db.DataReplicationFactor ?? '-'),
+      schemaRegions: owned.filter((region) => region.Type === 'SchemaRegion').length,
+      dataRegions: owned.filter((region) => region.Type === 'DataRegion').length,
+      nodes: [
+        ...new Set(owned.map((region) => String(region.DataNodeId)).filter((id) => id !== 'undefined')),
+      ],
+      unhealthy: owned.filter((region) => !isRunning(region.Status)).length,
+      required: Math.max(schemaRF, dataRF),
+    };
+  });
 
   return (
     <div>
       <Title level={3}>高可用监控</Title>
 
+      {errors.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          title="部分集群状态读不到"
+          description={errors.join('；')}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="集群健康度" value={score} suffix="%" />
+            <Statistic title="运行中节点" value={healthy} suffix={`/ ${nodes.length}`} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="节点总数" value={health.length} />
+            <Statistic title="Schema 共识" value={protocol(vars.SchemaRegionConsensusProtocolClass)} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="健康节点" value={health.filter((h) => h.status === 'Running' || h.status === 'Normal').length} />
+            <Statistic title="Data 共识" value={protocol(vars.DataRegionConsensusProtocolClass)} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="异常节点" value={health.filter((h) => h.status !== 'Running' && h.status !== 'Normal').length} />
+            <Statistic
+              title="单点数据库"
+              value={health.filter((row) => row.required <= 1).length}
+              suffix={`/ ${health.length}`}
+            />
           </Card>
         </Col>
       </Row>
 
       <Card
-        title="节点详情"
+        title="冗余与故障转移"
         size="small"
-        extra={
-          <Button icon={<ReloadOutlined />} onClick={fetchHealth}>
-            刷新
-          </Button>
-        }
+        extra={<Button icon={<ReloadOutlined />} onClick={fetchAll}>刷新</Button>}
+        style={{ marginBottom: 16 }}
       >
         <Spin spinning={loading}>
-          {health.length === 0 ? (
-            <Alert description="暂无集群数据" type="info" showIcon />
-          ) : (
-            <Table
-              dataSource={health}
-              columns={columns}
-              size="small"
-              pagination={{ pageSize: 20 }}
-            />
-          )}
+          <Table
+            dataSource={health}
+            rowKey={(record) => record.database}
+            size="small"
+            pagination={{ pageSize: 20 }}
+            columns={[
+              { title: '数据库', dataIndex: 'database', key: 'database' },
+              { title: 'Schema 副本因子', dataIndex: 'schemaReplication', key: 'schemaReplication' },
+              { title: 'Data 副本因子', dataIndex: 'dataReplication', key: 'dataReplication' },
+              { title: 'Schema Region', dataIndex: 'schemaRegions', key: 'schemaRegions' },
+              { title: 'Data Region', dataIndex: 'dataRegions', key: 'dataRegions' },
+              {
+                title: '承载节点',
+                dataIndex: 'nodes',
+                key: 'nodes',
+                render: (ids: string[]) => (ids.length ? ids.join(', ') : '-'),
+              },
+              {
+                title: '结论',
+                key: 'verdict',
+                render: (_: unknown, record: DbHealth) => {
+                  const verdict = verdictOf(record);
+                  return <Tag color={verdict.color}>{verdict.text}</Tag>;
+                },
+              },
+            ]}
+            locale={{
+              emptyText: (
+                <Alert
+                  type="info"
+                  showIcon
+                  title="集群里还没有数据库"
+                  description="SHOW DATABASES 返回了空列表，没有可评估冗余的对象。"
+                />
+              ),
+            }}
+          />
+        </Spin>
+      </Card>
+
+      <Card title="集群节点（SHOW CLUSTER）" size="small">
+        <Spin spinning={loading}>
+          <Table
+            dataSource={nodes}
+            rowKey={(record) => `${record.NodeType}-${record.NodeID}`}
+            size="small"
+            pagination={{ pageSize: 20 }}
+            columns={[
+              { title: 'NodeID', dataIndex: 'NodeID', key: 'NodeID' },
+              { title: '类型', dataIndex: 'NodeType', key: 'NodeType' },
+              {
+                title: '状态',
+                dataIndex: 'Status',
+                key: 'Status',
+                render: (status: string) => (
+                  <Tag color={isRunning(status) ? 'success' : 'error'}>{status}</Tag>
+                ),
+              },
+              {
+                title: '内部地址',
+                key: 'address',
+                render: (_: unknown, record: Record<string, any>) =>
+                  `${record.InternalAddress ?? '-'}:${record.InternalPort ?? '-'}`,
+              },
+              { title: '版本', dataIndex: 'Version', key: 'Version' },
+              { title: '构建', dataIndex: 'BuildInfo', key: 'BuildInfo' },
+            ]}
+            locale={{
+              emptyText: (
+                <Alert
+                  type="info"
+                  showIcon
+                  title="SHOW CLUSTER 没有返回节点"
+                  description="查询成功但列表为空。这一句没有 uptime / 心跳列，节点存活只能看 Status。"
+                />
+              ),
+            }}
+          />
         </Spin>
       </Card>
     </div>
