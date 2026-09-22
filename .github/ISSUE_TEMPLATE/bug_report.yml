@@ -1,0 +1,59 @@
+name: Bug report
+description: Report something that does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Do not post real hostnames, credentials or
+        customer data — sanitise anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Describe the bug
+      description: What you expected, and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '…'
+        2. Enter '…'
+        3. See error
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page route
+      description: The path shown in the address bar, e.g. /query-center
+      placeholder: /cluster
+  - type: input
+    id: iotdb-version
+    attributes:
+      label: IoTDB version
+      placeholder: "2.0.11"
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Browser and OS
+      placeholder: Edge 130 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: network
+    attributes:
+      label: Failing request or console errors
+      description: The REST path, status code and response body, plus any console output. Redact credentials.
+      render: shell
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have removed secrets and personal data from everything above.
+          required: true

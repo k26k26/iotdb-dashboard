@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a new page, panel or capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is a browser console over the IoTDB REST v2 API. If your idea
+        needs an API that IoTDB does not expose, say so — it changes the scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The workflow that is awkward today, not the proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Preferred implementation
+      description: Pages, controls, and which REST endpoints would be called.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Query / SQL
+        - Schema and metadata
+        - Cluster and monitoring
+        - Operations (pipe, trigger, CQ, UDF, backup)
+        - Auth and tenants
+        - Visualization
+        - Build or tooling
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: willing
+    attributes:
+      label: Willing to contribute
+      options:
+        - label: I can submit a pull request for this.

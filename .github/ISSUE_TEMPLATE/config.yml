@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Apache IoTDB security issues
+    url: https://www.apache.org/security/
+    about: Vulnerabilities in the IoTDB server itself go to the ASF, not here.

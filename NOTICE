@@ -1,0 +1,34 @@
+IoTDB Dashboard
+Copyright 2026 liuyu
+
+This product includes software developed at
+the IoTDB Dashboard project (https://github.com/k26k26/iotdb-dashboard).
+
+============================================================================
+
+This product bundles the following third-party components released under
+the Apache License, Version 2.0:
+
+  * Apache ECharts
+    Copyright 2017-2023 The Apache Software Foundation
+    https://github.com/apache/echarts
+
+  * less.js
+    Copyright 2009-2017 The Less Contributors
+    https://github.com/less/less.js
+
+  * TypeScript
+    Copyright (c) Microsoft Corporation. All rights reserved.
+    https://github.com/microsoft/TypeScript
+
+The Apache License, Version 2.0 text for each of the above is provided in
+the LICENSE file distributed with this product.
+
+============================================================================
+
+This product is an independent, community-maintained web dashboard and is
+NOT an Apache Software Foundation project, nor an official Apache IoTDB
+subproject. "Apache" and "Apache IoTDB" are trademarks of the Apache
+Software Foundation. This software is not endorsed by or affiliated with
+the Apache Software Foundation or the Apache IoTDB Project Management
+Committee in any way.
