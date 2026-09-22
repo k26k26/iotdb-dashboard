@@ -19,7 +19,7 @@ import { App as AntdApp, Card, Button, Space, Row, Col, Input, Empty } from 'ant
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
 import { query, assertRestOk } from '../../services/rest';
-import { shapeResult, toChartSeries } from '../../utils/queryResult';
+import { shapeResult, toChartSeries, chartTitleOf } from '../../utils/queryResult';
 import type { QueryResult } from '../../types/api';
 
 interface ChartConfig {
@@ -31,7 +31,7 @@ interface ChartConfig {
 
 const ChartPanel: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
   const shaped = useMemo(() => shapeResult(chart.data), [chart.data]);
-  const series = useMemo(() => toChartSeries(shaped), [shaped]);
+  const series = useMemo(() => toChartSeries(shaped, chart.sql), [shaped, chart.sql]);
 
   if (!chart.data) return null;
   if (shaped.rows.length === 0) {
@@ -42,7 +42,7 @@ const ChartPanel: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
 
   return (
     <TimeSeriesChart
-      title={chart.sql}
+      title={chartTitleOf(chart.sql)}
       xAxisData={chart.data.timestamps}
       series={series}
       height={300}

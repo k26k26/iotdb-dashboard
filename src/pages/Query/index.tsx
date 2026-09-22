@@ -22,7 +22,7 @@ import { query } from '../../services/rest';
 import { useQueryStore } from '../../stores/query';
 import type { QueryResult } from '../../types/api';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
-import { shapeResult, toChartSeries } from '../../utils/queryResult';
+import { shapeResult, toChartSeries, chartTitleOf } from '../../utils/queryResult';
 import type { Field } from '../../utils/queryResult';
 
 const Query: React.FC = () => {
@@ -140,9 +140,9 @@ const Query: React.FC = () => {
             <Card title="时序曲线" size="small">
               {hasTime ? (
                 <TimeSeriesChart
-                  title={sql}
+                  title={chartTitleOf(sql)}
                   xAxisData={result.timestamps}
-                  series={toChartSeries({ fields, rows, hasTime })}
+                  series={toChartSeries({ fields, rows, hasTime }, sql)}
                   height={400}
                 />
               ) : (

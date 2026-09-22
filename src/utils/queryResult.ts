@@ -62,8 +62,29 @@ export function shapeResult(result: QueryResult | null): ShapedResult {
   return { fields, rows, hasTime };
 }
 
-/** Value columns as chart series, keeping the column-oriented shape the chart wants. */
-export const toChartSeries = (shaped: ShapedResult) =>
-  shaped.fields
+/**
+ * The path a query reads from. Everything the result can contain sits underneath it, so repeating it in
+ * every label buys nothing -- and a wildcard tail never matches a real column name, hence the trim.
+ */
+export const fromPathOf = (sql: string): string => {
+  const matched = /\bfrom\s+(`[^`]+`|"[^"]+"|'[^']+'|[^\s;)]+)/i.exec(sql);
+  if (!matched) return '';
+  return matched[1].replace(/\.(?:\*\*|\*)$/, '').replace(/(?:\*\*|\*)$/, '');
+};
+
+/** A chart heading: the FROM target, falling back to the statement when the query has no FROM. */
+export const chartTitleOf = (sql: string): string => fromPathOf(sql) || sql;
+
+/** Value columns as chart series, named relative to the FROM path so multi-device legends stay readable. */
+export const toChartSeries = (shaped: ShapedResult, sql = '') => {
+  const prefix = fromPathOf(sql);
+  return shaped.fields
     .filter((field) => field.key !== '__time')
-    .map((field) => ({ name: field.title, data: shaped.rows.map((row) => row[field.key]) }));
+    .map((field) => ({
+      name:
+        prefix && field.title.startsWith(`${prefix}.`)
+          ? field.title.slice(prefix.length + 1)
+          : field.title,
+      data: shaped.rows.map((row) => row[field.key]),
+    }));
+};
