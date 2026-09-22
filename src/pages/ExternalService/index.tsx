@@ -14,57 +14,72 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, message, Spin, Alert, Tag } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Table, Button, Spin, Alert, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { query } from '../../services/rest';
+import { queryRows } from '../../services/rest';
+import type { PipePluginInfo } from '../../types/api';
 
-interface ServiceInfo {
-  serviceType: string;
-  status: string;
-}
+const shown = (value: string | null) => value || '-';
+
+const fetchPlugins = async (): Promise<PipePluginInfo[]> => {
+  const rows = await queryRows('SHOW PIPEPLUGINS');
+  return rows.map(
+    (row) =>
+      ({
+        pluginName: String(row.PluginName ?? ''),
+        pluginType: String(row.PluginType ?? ''),
+        className: String(row.ClassName ?? ''),
+        pluginJar: String(row.PluginJar ?? ''),
+        exceptionMessage: String(row.ExceptionMessage ?? ''),
+      }) as PipePluginInfo
+  );
+};
 
 const ExternalServices: React.FC = () => {
-  const [services, setServices] = useState<ServiceInfo[]>([]);
+  const [plugins, setPlugins] = useState<PipePluginInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  // A cluster with no custom jars legitimately lists only builtins, so failures need their own state.
+  const [error, setError] = useState('');
 
-  const fetchServices = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await query('SHOW EXTERNAL SERVICES');
-      const values = Array.isArray(result?.values) ? result.values : [];
-      setServices(
-        values.map((row) => ({
-          serviceType: row[0],
-          status: row[1],
-        }))
-      );
-    } catch (error) {
-      message.error('获取外部服务列表失败');
+      setPlugins(await fetchPlugins());
+      setError('');
+    } catch (err: any) {
+      setError(`获取外部服务列表失败: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchServices();
-    const interval = setInterval(fetchServices, 5000);
-    return () => clearInterval(interval);
   }, []);
 
-  const statusColor = (status: string) => {
-    if (status === 'RUNNING' || status === 'Normal') return 'success';
-    if (status === 'STOPPED' || status === 'Abnormal') return 'error';
-    return 'default';
-  };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const columns = [
-    { title: '服务类型', dataIndex: 'serviceType', key: 'serviceType' },
+    { title: '插件名称', dataIndex: 'pluginName', key: 'pluginName' },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => <Tag color={statusColor(status)}>{status}</Tag>,
+      title: '类别',
+      dataIndex: 'pluginType',
+      key: 'pluginType',
+      render: (type: string) => <Tag>{type}</Tag>,
+    },
+    { title: '实现类', dataIndex: 'className', key: 'className', ellipsis: true },
+    {
+      title: 'JAR 包',
+      dataIndex: 'pluginJar',
+      key: 'pluginJar',
+      ellipsis: true,
+      render: shown,
+    },
+    {
+      title: '加载异常',
+      dataIndex: 'exceptionMessage',
+      key: 'exceptionMessage',
+      ellipsis: true,
+      render: shown,
     },
   ];
 
@@ -74,20 +89,33 @@ const ExternalServices: React.FC = () => {
         title="外部服务管理"
         size="small"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={fetchServices}>
+          <Button icon={<ReloadOutlined />} onClick={refresh}>
             刷新
           </Button>
         }
       >
+        <Typography.Paragraph type="secondary">
+          外部服务即管道连接器插件，供数据管道的 source / processor / sink 引用；可用
+          <code>CREATE PIPE PLUGIN</code> 注册自定义 JAR。
+        </Typography.Paragraph>
         <Spin spinning={loading}>
-          {services.length === 0 ? (
-            <Alert description="暂无外部服务" type="info" showIcon />
+          {error ? (
+            <Alert type="error" showIcon title={error} />
+          ) : plugins.length === 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              title="暂无外部服务"
+              description="查询成功，当前集群没有可用的连接器插件。"
+            />
           ) : (
             <Table
-              dataSource={services.map((s, index) => ({ ...s, key: index }))}
+              dataSource={plugins}
+              rowKey="pluginName"
               columns={columns}
               size="small"
-              pagination={false}
+              scroll={{ x: 'max-content' }}
+              pagination={{ pageSize: 20 }}
             />
           )}
         </Spin>

@@ -91,6 +91,15 @@ export interface CurrentQuery {
   clientIp: string;
 }
 
+/** SHOW PIPEPLUGINS -- the connector plugins IoTDB uses to talk to external systems. */
+export interface PipePluginInfo {
+  pluginName: string;
+  pluginType: string;
+  className: string;
+  pluginJar: string;
+  exceptionMessage: string;
+}
+
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
