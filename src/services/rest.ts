@@ -57,8 +57,29 @@ export const query = async (sql: string, rowLimit?: number): Promise<QueryResult
   return response.data;
 };
 
+/**
+ * The tree model answers column-oriented (`values[colIndex][rowIndex]`), and `SELECT` only
+ * names its columns in `expressions`. Indexing `values` as rows instead turns every column into
+ * one bogus record, so read tree results through here. Time is not a key here -- it stays in
+ * `timestamps`, which `shapeResult()` handles for the chart and table views.
+ */
+export const queryRows = async (sql: string, rowLimit?: number): Promise<Record<string, any>[]> => {
+  const result = await query(sql, rowLimit);
+  assertRestOk(result);
+  const named = Array.isArray(result.column_names) && result.column_names.length
+    ? result.column_names
+    : (Array.isArray(result.expressions) ? result.expressions : []);
+  const table = Array.isArray(result.values) ? result.values : [];
+  if (!named.length) return [];
+  const rowCount = table[0]?.length ?? 0;
+  return Array.from({ length: rowCount }, (_, i) =>
+    Object.fromEntries(named.map((name, c) => [name, table[c]?.[i] ?? null]))
+  );
+};
+
 export const nonQuery = async (sql: string): Promise<void> => {
-  await iotdb.post('/rest/v2/nonQuery', { sql });
+  const response = await iotdb.post('/rest/v2/nonQuery', { sql });
+  assertRestOk(response.data);
 };
 
 export const fastLastQuery = async (prefixPaths: string[]): Promise<any> => {
