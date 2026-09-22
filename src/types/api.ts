@@ -94,7 +94,8 @@ export interface CurrentQuery {
 /** information_schema.pipes */
 export interface PipeInfo {
   pipeId: string;
-  creationTime: number;
+  /** Epoch millis or an ISO string, depending on which REST model served the row. */
+  creationTime: string | number;
   state: string;
   pipeSource: string;
   pipeProcessor: string;
