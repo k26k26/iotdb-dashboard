@@ -173,7 +173,7 @@ const ChartPanel: React.FC<{ read: Readout; path: string }> = ({ read, path }) =
 };
 
 const AIAnalysis: React.FC = () => {
-  const [path, setPath] = useState('root.mtwarn_ts');
+  const [path, setPath] = useState('root.sg.d1');
   const [windowKey, setWindowKey] = useState('7d');
   const [deviceLimit, setDeviceLimit] = useState(5);
   const [pointLimit, setPointLimit] = useState(1000);
@@ -261,7 +261,7 @@ const AIAnalysis: React.FC = () => {
             <Input
               value={path}
               onChange={(event) => setPath(event.target.value)}
-              placeholder="root.mtwarn_ts"
+              placeholder="root.sg.d1"
               style={{ width: 220 }}
             />
           </div>

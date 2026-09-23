@@ -203,7 +203,7 @@ const AlertManagement: React.FC = () => {
               { pattern: PATH, message: '仅允许路径字符，例如 root.sg.d1.s1' },
             ]}
           >
-            <Input placeholder="root.mtwarn_ts.d1.s1" />
+            <Input placeholder="root.sg.d1.s1" />
           </Form.Item>
           <Form.Item name="threshold" label="阈值" rules={[{ required: true, message: '请输入阈值' }]}>
             <InputNumber style={{ width: '100%' }} />
