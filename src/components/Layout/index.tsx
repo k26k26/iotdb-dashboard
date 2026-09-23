@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, theme } from 'antd';
+import { Layout, Menu, Button, Segmented, theme } from 'antd';
 import {
   DashboardOutlined,
   CodeOutlined,
@@ -44,6 +44,8 @@ import {
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useConnectionStore } from '../../stores/connection';
+import { useSettingsStore } from '../../stores/settings';
+import { useI18n } from '../../i18n';
 import ConnectionModal from '../ConnectionModal';
 
 const { Header, Sider, Content } = Layout;
@@ -54,6 +56,8 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { host, port, username, isConnected } = useConnectionStore();
+  const { t, language } = useI18n();
+  const setLanguage = useSettingsStore((state) => state.setLanguage);
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -67,77 +71,77 @@ const AppLayout: React.FC = () => {
     {
       key: 'core-group',
       icon: <DashboardOutlined />,
-      label: '核心功能',
+      label: t('核心功能'),
       children: [
-        { key: '/', icon: <DashboardOutlined />, label: '首页' },
-        { key: '/query', icon: <CodeOutlined />, label: 'SQL 查询' },
-        { key: '/visualization', icon: <LineChartOutlined />, label: '可视化' },
-        { key: '/explorer', icon: <FolderOpenOutlined />, label: '路径浏览器' },
+        { key: '/', icon: <DashboardOutlined />, label: t('首页') },
+        { key: '/query', icon: <CodeOutlined />, label: t('SQL 查询') },
+        { key: '/visualization', icon: <LineChartOutlined />, label: t('可视化') },
+        { key: '/explorer', icon: <FolderOpenOutlined />, label: t('路径浏览器') },
       ],
     },
     {
       key: 'data-group',
       icon: <DatabaseOutlined />,
-      label: '数据管理',
+      label: t('数据管理'),
       children: [
-        { key: '/database', icon: <DatabaseOutlined />, label: '数据库管理' },
-        { key: '/timeseries', icon: <DatabaseOutlined />, label: '测点管理' },
-        { key: '/latest-values', icon: <ClockCircleOutlined />, label: '最新值' },
-        { key: '/data', icon: <FundOutlined />, label: '数据导入导出' },
+        { key: '/database', icon: <DatabaseOutlined />, label: t('数据库管理') },
+        { key: '/timeseries', icon: <DatabaseOutlined />, label: t('测点管理') },
+        { key: '/latest-values', icon: <ClockCircleOutlined />, label: t('最新值') },
+        { key: '/data', icon: <FundOutlined />, label: t('数据导入导出') },
       ],
     },
     {
       key: 'ops-group',
       icon: <ClusterOutlined />,
-      label: '集群运维',
+      label: t('集群运维'),
       children: [
-        { key: '/cluster', icon: <ClusterOutlined />, label: '集群管理' },
-        { key: '/query-center', icon: <ApiOutlined />, label: '查询中心' },
-        { key: '/pipe', icon: <ThunderboltOutlined />, label: '数据管道' },
-        { key: '/external-service', icon: <ApiOutlined />, label: '外部服务' },
-        { key: '/realtime', icon: <LineChartOutlined />, label: '实时监控' },
+        { key: '/cluster', icon: <ClusterOutlined />, label: t('集群管理') },
+        { key: '/query-center', icon: <ApiOutlined />, label: t('查询中心') },
+        { key: '/pipe', icon: <ThunderboltOutlined />, label: t('数据管道') },
+        { key: '/external-service', icon: <ApiOutlined />, label: t('外部服务') },
+        { key: '/realtime', icon: <LineChartOutlined />, label: t('实时监控') },
       ],
     },
     {
       key: 'advanced-group',
       icon: <SettingOutlined />,
-      label: '高级管理',
+      label: t('高级管理'),
       children: [
-        { key: '/auth', icon: <SafetyCertificateOutlined />, label: '权限管理' },
-        { key: '/trigger', icon: <BulbOutlined />, label: '触发器' },
-        { key: '/cq', icon: <LineChartOutlined />, label: '连续查询' },
-        { key: '/index', icon: <AppstoreOutlined />, label: '索引管理' },
-        { key: '/function', icon: <BulbOutlined />, label: '函数管理' },
-        { key: '/config', icon: <SettingOutlined />, label: '配置管理' },
+        { key: '/auth', icon: <SafetyCertificateOutlined />, label: t('权限管理') },
+        { key: '/trigger', icon: <BulbOutlined />, label: t('触发器') },
+        { key: '/cq', icon: <LineChartOutlined />, label: t('连续查询') },
+        { key: '/index', icon: <AppstoreOutlined />, label: t('索引管理') },
+        { key: '/function', icon: <BulbOutlined />, label: t('函数管理') },
+        { key: '/config', icon: <SettingOutlined />, label: t('配置管理') },
       ],
     },
     {
       key: 'ai-group',
       icon: <ExperimentOutlined />,
-      label: '智能分析',
+      label: t('智能分析'),
       children: [
-        { key: '/alert', icon: <AlertOutlined />, label: '告警管理' },
-        { key: '/lineage', icon: <ShareAltOutlined />, label: '血缘分析' },
-        { key: '/system', icon: <InfoCircleOutlined />, label: '系统信息' },
-        { key: '/ai', icon: <ExperimentOutlined />, label: 'AI 分析' },
+        { key: '/alert', icon: <AlertOutlined />, label: t('告警管理') },
+        { key: '/lineage', icon: <ShareAltOutlined />, label: t('血缘分析') },
+        { key: '/system', icon: <InfoCircleOutlined />, label: t('系统信息') },
+        { key: '/ai', icon: <ExperimentOutlined />, label: t('AI 分析') },
       ],
     },
     {
       key: 'enterprise-group',
       icon: <SettingOutlined />,
-      label: '企业特性',
+      label: t('企业特性'),
       children: [
-        { key: '/tenant', icon: <UserOutlined />, label: '租户与配额' },
-        { key: '/high-availability', icon: <CloudServerOutlined />, label: '高可用监控' },
-        { key: '/audit', icon: <FileTextOutlined />, label: '审计日志' },
-        { key: '/backup', icon: <SaveOutlined />, label: '备份恢复' },
-        { key: '/performance', icon: <ArrowUpOutlined />, label: '性能调优' },
+        { key: '/tenant', icon: <UserOutlined />, label: t('租户与配额') },
+        { key: '/high-availability', icon: <CloudServerOutlined />, label: t('高可用监控') },
+        { key: '/audit', icon: <FileTextOutlined />, label: t('审计日志') },
+        { key: '/backup', icon: <SaveOutlined />, label: t('备份恢复') },
+        { key: '/performance', icon: <ArrowUpOutlined />, label: t('性能调优') },
       ],
     },
     {
       key: '/settings',
       icon: <SettingOutlined />,
-      label: '系统设置',
+      label: t('系统设置'),
     },
   ];
 
@@ -185,6 +189,15 @@ const AppLayout: React.FC = () => {
             style={{ fontSize: '16px', width: 64, height: 64 }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Segmented
+              size="small"
+              value={language}
+              onChange={(value) => setLanguage(value as 'zh' | 'en')}
+              options={[
+                { label: '中', value: 'zh' }, // i18n-ignore
+                { label: 'EN', value: 'en' },
+              ]}
+            />
             <span
               style={{
                 display: 'flex',
@@ -194,13 +207,13 @@ const AppLayout: React.FC = () => {
               }}
             >
               <WifiOutlined />
-              {isConnected ? '已连接' : '未连接'}
+              {isConnected ? t('已连接') : t('未连接')}
             </span>
             <span style={{ color: '#888' }}>
               {username}@{host}:{port}
             </span>
             <Button type="primary" size="small" onClick={() => setModalOpen(true)}>
-              连接配置
+              {t('连接配置')}
             </Button>
           </div>
         </Header>

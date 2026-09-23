@@ -16,10 +16,11 @@ Licensed under the Apache License 2.0 — see [LICENSE](./LICENSE) and [NOTICE](
 | Operations | Pipe, trigger, continuous query (CQ), UDF, config, backup, performance tuning, audit logs, alerts |
 | Security | Users & privileges, tenant management |
 | Extras | Visualization workbench, external services (Grafana), AI analysis |
+| Interface | Full Chinese / English UI, switched from the header and remembered across reloads |
 
 ## Interface preview
 
-Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state. The header of each capture shows the address of the author's private LAN node, and the data behind it is a throwaway `root.sg` database (two devices, nine timeseries of synthetic sensor values) — nothing there is production telemetry, and none of it is reachable from anywhere else.
+Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state. The header of each capture shows the address of the author's private LAN node, and the data behind it is a throwaway `root.sg` database (two devices, nine timeseries of synthetic sensor values) — nothing there is production telemetry, and none of it is reachable from anywhere else. Every capture is in the default Chinese interface; see [Interface language](#interface-language) for the English switch.
 
 ### Core
 
@@ -167,7 +168,7 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-Then open the app and fill in host / port / username / password in the **连接配置** dialog in the header. It starts out pointing at `127.0.0.1:18080`; whatever you save is persisted in `localStorage` under the `iotdb-connection` key.
+Then open the app and fill in host / port / username / password in the **Connection settings** dialog in the header. It starts out pointing at `127.0.0.1:18080`; whatever you save is persisted in `localStorage` under the `iotdb-connection` key.
 
 To avoid typing it on every machine, keep your node in a git-ignored `.env.local`:
 
@@ -175,15 +176,22 @@ To avoid typing it on every machine, keep your node in a git-ignored `.env.local
 cp .env.example .env.local   # then set VITE_IOTDB_HOST / VITE_IOTDB_PORT
 ```
 
-When a connection test fails the dialog says *why* — credentials rejected, nothing listening on that port, or no answer at all — and then shows the exact server-side properties to enable, the firewall commands for the port, and a **扫描局域网** box that walks `1–255` of a subnet you name (RFC 1918 ranges only) looking for anything answering on the REST port.
+When a connection test fails the dialog says *why* — credentials rejected, nothing listening on that port, or no answer at all — and then shows the exact server-side properties to enable, the firewall commands for the port, and a **LAN scan** box that walks `1–255` of a subnet you name (RFC 1918 ranges only) looking for anything answering on the REST port.
 
-The Wi-Fi badge in the header is not a switch you have to remember to flip: the app probes the node once at startup and then updates the badge from the responses of the queries you actually run, so a stale "未连接" after a reload means the probe could not reach that address.
+The Wi-Fi badge in the header is not a switch you have to remember to flip: the app probes the node once at startup and then updates the badge from the responses of the queries you actually run, so a stale "Not connected" after a reload means the probe could not reach that address.
 
 ```bash
-npm run build    # type-check + production bundle into dist/
-npm run lint     # oxlint
-npm run license:check
+npm run build         # type-check + production bundle into dist/
+npm run lint          # oxlint
+npm run license:check # every source file keeps its Apache header
+npm run i18n:check    # every Chinese string on screen has an English entry
 ```
+
+## Interface language
+
+The header carries a **中 / EN** control that switches all 30 routes at once: menus, tables, alerts, the connection dialog and LAN scanner, and even the wording of the health-check findings on `/ai`. Ant Design's own widgets (date pickers, table filters, pagination) follow the same switch. The choice is stored with the other preferences under the `iotdb-settings` key. Nothing server-side is translated — database and timeseries names, SQL text and IoTDB error messages come back exactly as the node wrote them.
+
+Translations live in a plain dictionary keyed by the Chinese source text (`src/i18n/en/`, split by area), with no runtime i18n library added. That is what makes coverage checkable rather than felt: `npm run i18n:check` walks every file under `src/`, drops anything already wrapped in `t()` / `tx()`, and fails on any surviving line that still carries Chinese outside the dictionary. A new page that forgets to wrap its labels breaks the check instead of quietly shipping half a screen of Chinese to English readers.
 
 ## Connecting to IoTDB
 
@@ -204,9 +212,9 @@ The REST base URL is then built directly from the host and port you enter in the
 Please read before pointing this at anything that matters:
 
 - **Not production-ready for exposed networks.** Credentials are held in `localStorage` and sent as HTTP Basic auth over plain HTTP unless you terminate TLS yourself.
-- The app starts out pointing at `127.0.0.1:18080`, which will only work if IoTDB is on the machine running your browser. Point it at your own node in the **连接配置** dialog, or set `VITE_IOTDB_HOST` / `VITE_IOTDB_PORT` in a git-ignored `.env.local` so you do not retype it. A host you saved earlier wins over the default and is kept in `localStorage` under the `iotdb-connection` key. Never point this app at a node you have not secured; the app does not force a credential change.
+- The app starts out pointing at `127.0.0.1:18080`, which will only work if IoTDB is on the machine running your browser. Point it at your own node in the **Connection settings** dialog, or set `VITE_IOTDB_HOST` / `VITE_IOTDB_PORT` in a git-ignored `.env.local` so you do not retype it. A host you saved earlier wins over the default and is kept in `localStorage` under the `iotdb-connection` key. Never point this app at a node you have not secured; the app does not force a credential change.
 - The `/ai` page calls no model and no external service — it is a local rule-based health check over data the server already returned, so its findings are only as good as the sample you point it at. Every page imports the services layer, but how completely each call is wired has not been audited page by page, so treat a blank panel as "unverified", not "no results".
-- No unit tests yet. CI covers type-checking, linting, build and license headers only.
+- No unit tests yet. CI covers type-checking, linting, build, license headers and translation coverage only.
 
 Contributions that address any of these are especially welcome.
 
@@ -216,6 +224,7 @@ Contributions that address any of these are especially welcome.
 src/
   pages/        one directory per feature page (30 routes)
   components/   shared layout, data tables, charts
+  i18n/         English dictionary keyed by the Chinese source text, split by area
   services/     IoTDB REST / metadata / Grafana API clients
   stores/       zustand state (connection, query, settings) with persist
   types/        API type definitions

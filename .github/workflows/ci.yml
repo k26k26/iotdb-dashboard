@@ -30,6 +30,9 @@ jobs:
       - name: Verify Apache license headers
         run: node scripts/license-headers.mjs --check
 
+      - name: Verify translation coverage
+        run: npm run i18n:check
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 

@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Card, Table, Button, Modal, Form, Input, Select, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { queryRows, nonQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 import type { TimeseriesInfo } from '../../types/api';
 
 const TimeseriesManagement: React.FC = () => {
@@ -26,6 +27,7 @@ const TimeseriesManagement: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchTimeseries = async () => {
     setLoading(true);
@@ -40,7 +42,7 @@ const TimeseriesManagement: React.FC = () => {
         }))
       );
     } catch (error: any) {
-      message.error(`获取测点列表失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('获取测点列表失败: {msg}', { msg: error.response?.data?.message || error.message }));
     } finally {
       setLoading(false);
     }
@@ -55,37 +57,37 @@ const TimeseriesManagement: React.FC = () => {
       await nonQuery(
         `CREATE TIMESERIES ${values.path} WITH DATATYPE=${values.datatype}, ENCODING=${values.encoding}, COMPRESSION=${values.compression}`
       );
-      message.success('测点创建成功');
+      message.success(t('测点创建成功'));
       setModalOpen(false);
       form.resetFields();
       fetchTimeseries();
     } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('创建失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const handleDelete = async (path: string) => {
     try {
       await nonQuery(`DELETE TIMESERIES ${path}`);
-      message.success('测点删除成功');
+      message.success(t('测点删除成功'));
       fetchTimeseries();
     } catch (error: any) {
-      message.error(`删除失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('删除失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const columns = [
-    { title: '路径', dataIndex: 'timeseries', key: 'timeseries' },
-    { title: '数据类型', dataIndex: 'datatype', key: 'datatype' },
-    { title: '编码', dataIndex: 'encoding', key: 'encoding' },
-    { title: '压缩', dataIndex: 'compression', key: 'compression' },
+    { title: t('路径'), dataIndex: 'timeseries', key: 'timeseries' },
+    { title: t('数据类型'), dataIndex: 'datatype', key: 'datatype' },
+    { title: t('编码'), dataIndex: 'encoding', key: 'encoding' },
+    { title: t('压缩'), dataIndex: 'compression', key: 'compression' },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: any, record: TimeseriesInfo) => (
-        <Popconfirm title="确定删除该测点吗？" onConfirm={() => handleDelete(record.timeseries)}>
+        <Popconfirm title={t('确定删除该测点吗？')} onConfirm={() => handleDelete(record.timeseries)}>
           <Button type="link" danger icon={<DeleteOutlined />}>
-            删除
+            {t('删除')}
           </Button>
         </Popconfirm>
       ),
@@ -95,16 +97,16 @@ const TimeseriesManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="测点管理"
+        title={t('测点管理')}
         size="small"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-            创建测点
+            {t('创建测点')}
           </Button>
         }
       >
         <Table
-          dataSource={timeseries.map((t) => ({ ...t, key: t.timeseries }))}
+          dataSource={timeseries.map((item) => ({ ...item, key: item.timeseries }))}
           columns={columns}
           loading={loading}
           size="small"
@@ -113,7 +115,7 @@ const TimeseriesManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title="创建测点"
+        title={t('创建测点')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}
@@ -124,10 +126,10 @@ const TimeseriesManagement: React.FC = () => {
           initialValues={{ datatype: 'INT64', encoding: 'RLE', compression: 'LZ4' }}
           onFinish={handleCreate}
         >
-          <Form.Item name="path" label="路径" rules={[{ required: true }]}>
+          <Form.Item name="path" label={t('路径')} rules={[{ required: true }]}>
             <Input placeholder="root.sg.d1.s1" />
           </Form.Item>
-          <Form.Item name="datatype" label="数据类型" rules={[{ required: true }]}>
+          <Form.Item name="datatype" label={t('数据类型')} rules={[{ required: true }]}>
             <Select>
               <Select.Option value="INT64">INT64</Select.Option>
               <Select.Option value="INT32">INT32</Select.Option>
@@ -137,7 +139,7 @@ const TimeseriesManagement: React.FC = () => {
               <Select.Option value="BOOLEAN">BOOLEAN</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="encoding" label="编码" rules={[{ required: true }]}>
+          <Form.Item name="encoding" label={t('编码')} rules={[{ required: true }]}>
             <Select>
               <Select.Option value="RLE">RLE</Select.Option>
               <Select.Option value="PLAIN">PLAIN</Select.Option>
@@ -145,7 +147,7 @@ const TimeseriesManagement: React.FC = () => {
               <Select.Option value="GORILLA_V1">GORILLA_V1</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="compression" label="压缩" rules={[{ required: true }]}>
+          <Form.Item name="compression" label={t('压缩')} rules={[{ required: true }]}>
             <Select>
               <Select.Option value="LZ4">LZ4</Select.Option>
               <Select.Option value="SNAPPY">SNAPPY</Select.Option>
@@ -155,7 +157,7 @@ const TimeseriesManagement: React.FC = () => {
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
-              创建
+              {t('创建')}
             </Button>
           </Form.Item>
         </Form>

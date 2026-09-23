@@ -30,9 +30,21 @@ Point a local IoTDB at REST port `18080`, then connect from the app.
    npm run lint
    npm run build
    npm run license:check
+   npm run i18n:check
    ```
 
 4. Push and open a pull request against `main`.
+
+## UI text is bilingual
+
+The Chinese on screen is the source text *and* the dictionary key, so any new
+label must be written as `t('中文')` — or `tx('中文')` when the string is built
+early and rendered later — instead of being dropped in bare. `npm run i18n:check`
+fails on a Chinese string that is not wrapped, and on an English entry whose key
+no longer exists. Add the matching entry to the area slice under `src/i18n/en/`
+(`common.ts` holds words shared across areas). If a string genuinely must stay
+Chinese, mark its line with a trailing `i18n-ignore` comment and say why in the
+pull request.
 
 ## License headers are mandatory
 

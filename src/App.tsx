@@ -17,6 +17,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
 import AppLayout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Query from './pages/Query';
@@ -52,10 +53,11 @@ import { useSettingsStore } from './stores/settings';
 
 function App() {
   const themeMode = useSettingsStore((state) => state.theme);
+  const language = useSettingsStore((state) => state.language);
   const algorithm = themeMode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm;
 
   return (
-    <ConfigProvider locale={zhCN} theme={{ algorithm }}>
+    <ConfigProvider locale={language === 'en' ? enUS : zhCN} theme={{ algorithm }}>
       <AntdApp>
       <BrowserRouter>
         <Routes>

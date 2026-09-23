@@ -16,6 +16,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { App, Collapse, Form, Input, InputNumber, Modal } from 'antd';
+import { useI18n } from '../../i18n';
 import { DEFAULT_HOST, DEFAULT_PORT, useConnectionStore, type ProbeFailure } from '../../stores/connection';
 import ConnectionGuide from '../ConnectionGuide';
 import LanScanner from '../LanScanner';
@@ -28,6 +29,7 @@ interface Props {
 const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
   const [form] = Form.useForm();
   const { message } = App.useApp();
+  const { t } = useI18n();
   const { host, port, username, password, setConnection, setConnected } = useConnectionStore();
   const [testing, setTesting] = useState(false);
   const [failure, setFailure] = useState<ProbeFailure | null>(null);
@@ -45,7 +47,9 @@ const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
     const result = await useConnectionStore.getState().testConnection();
     setTesting(false);
     if (result.ok) {
-      message.success(`已连接 ${values.host}:${values.port}（${result.ms}ms）`);
+      message.success(
+        t('已连接 {host}:{port}（{ms}ms）', { host: values.host, port: values.port, ms: result.ms })
+      );
       setFailure(null);
       onClose();
       return;
@@ -53,7 +57,7 @@ const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
     setFailure(result.failure ?? 'refused');
     setStatus(result.status);
     setConnected(false);
-    message.error('连接失败，下面是对应的原因和排查步骤');
+    message.error(t('连接失败，下面是对应的原因和排查步骤'));
   };
 
   const tried = `${String(form.getFieldValue('host') || DEFAULT_HOST)}:${String(
@@ -62,12 +66,12 @@ const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
 
   return (
     <Modal
-      title="连接配置"
+      title={t('连接配置')}
       open={open}
       onOk={submit}
       onCancel={onClose}
-      okText="测试并连接"
-      cancelText="关闭"
+      okText={t('测试并连接')}
+      cancelText={t('关闭')}
       confirmLoading={testing}
       afterOpenChange={(visible) => {
         if (!visible) {
@@ -82,18 +86,18 @@ const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
           <Form.Item
             name="host"
             label="Host"
-            rules={[{ required: true, message: '请输入 Host' }]}
+            rules={[{ required: true, message: t('请输入 Host') }]}
             style={{ flex: '2 1 240px' }}
           >
             <Input placeholder={DEFAULT_HOST} />
           </Form.Item>
-          <Form.Item name="port" label="Port" rules={[{ required: true, message: '请输入 Port' }]} style={{ flex: '1 1 120px' }}>
+          <Form.Item name="port" label="Port" rules={[{ required: true, message: t('请输入 Port') }]} style={{ flex: '1 1 120px' }}>
             <InputNumber min={1} max={65535} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="username" label="Username" rules={[{ required: true, message: '请输入 Username' }]} style={{ flex: '1 1 140px' }}>
+          <Form.Item name="username" label="Username" rules={[{ required: true, message: t('请输入 Username') }]} style={{ flex: '1 1 140px' }}>
             <Input />
           </Form.Item>
-          <Form.Item name="password" label="Password" rules={[{ required: true, message: '请输入 Password' }]} style={{ flex: '1 1 140px' }}>
+          <Form.Item name="password" label="Password" rules={[{ required: true, message: t('请输入 Password') }]} style={{ flex: '1 1 140px' }}>
             <Input.Password />
           </Form.Item>
         </div>
@@ -107,7 +111,7 @@ const ConnectionModal: React.FC<Props> = ({ open, onClose }) => {
         items={[
           {
             key: 'scan',
-            label: '扫描局域网，找出开着 REST 端口的机器',
+            label: t('扫描局域网，找出开着 REST 端口的机器'),
             children: (
               <LanScanner
                 currentHost={host}

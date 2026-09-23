@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Card, Table, Button, Modal, Form, Input, InputNumber, Space, Popconfirm, Spin } from 'antd';
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { query, nonQuery, assertRestOk } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 interface DatabaseInfo {
   database: string;
@@ -32,6 +33,7 @@ const DatabaseManagement: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchDatabases = async () => {
     setLoading(true);
@@ -58,7 +60,7 @@ const DatabaseManagement: React.FC = () => {
         }))
       );
     } catch (error: any) {
-      message.error(`获取数据库列表失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('获取数据库列表失败: {msg}', { msg: error.response?.data?.message || error.message }));
     } finally {
       setLoading(false);
     }
@@ -74,50 +76,50 @@ const DatabaseManagement: React.FC = () => {
       if (values.ttl) {
         await nonQuery(`SET TTL ${values.name} TO ${values.ttl}`);
       }
-      message.success('数据库创建成功');
+      message.success(t('数据库创建成功'));
       setModalOpen(false);
       form.resetFields();
       fetchDatabases();
     } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('创建失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const handleDelete = async (database: string) => {
     try {
       await nonQuery(`DROP DATABASE ${database}`);
-      message.success('数据库删除成功');
+      message.success(t('数据库删除成功'));
       fetchDatabases();
     } catch (error: any) {
-      message.error(`删除失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('删除失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const columns = [
-    { title: '数据库名', dataIndex: 'database', key: 'database' },
+    { title: t('数据库名'), dataIndex: 'database', key: 'database' },
     {
-      title: 'Schema 副本数',
+      title: t('Schema 副本数'),
       dataIndex: 'schemaReplicationFactor',
       key: 'schemaReplicationFactor',
     },
     {
-      title: '数据副本数',
+      title: t('数据副本数'),
       dataIndex: 'dataReplicationFactor',
       key: 'dataReplicationFactor',
     },
     {
-      title: '时间分区间隔 (ms)',
+      title: t('时间分区间隔 (ms)'),
       dataIndex: 'timePartitionInterval',
       key: 'timePartitionInterval',
     },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: any, record: DatabaseInfo) => (
         <Space>
-          <Popconfirm title="确定删除该数据库吗？" onConfirm={() => handleDelete(record.database)}>
+          <Popconfirm title={t('确定删除该数据库吗？')} onConfirm={() => handleDelete(record.database)}>
             <Button type="link" danger icon={<DeleteOutlined />}>
-              删除
+              {t('删除')}
             </Button>
           </Popconfirm>
         </Space>
@@ -128,15 +130,15 @@ const DatabaseManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="数据库管理"
+        title={t('数据库管理')}
         size="small"
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchDatabases}>
-              刷新
+              {t('刷新')}
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              创建数据库
+              {t('创建数据库')}
             </Button>
           </Space>
         }
@@ -152,21 +154,21 @@ const DatabaseManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title="创建数据库"
+        title={t('创建数据库')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="name" label="数据库名" rules={[{ required: true, message: '请输入数据库名' }]}>
+          <Form.Item name="name" label={t('数据库名')} rules={[{ required: true, message: t('请输入数据库名') }]}>
             <Input placeholder="root.sg" />
           </Form.Item>
-          <Form.Item name="ttl" label="TTL (可选，单位：毫秒)">
+          <Form.Item name="ttl" label={t('TTL (可选，单位：毫秒)')}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              创建
+              {t('创建')}
             </Button>
           </Form.Item>
         </Form>

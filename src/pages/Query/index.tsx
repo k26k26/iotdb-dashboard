@@ -24,8 +24,10 @@ import type { QueryResult } from '../../types/api';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
 import { shapeResult, toChartSeries, chartTitleOf } from '../../utils/queryResult';
 import type { Field } from '../../utils/queryResult';
+import { useI18n } from '../../i18n';
 
 const Query: React.FC = () => {
+  const { t } = useI18n();
   const [sql, setSql] = useState('SELECT s1, s2 FROM root.sg.d1 LIMIT 100');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -34,7 +36,7 @@ const Query: React.FC = () => {
 
   const handleExecute = useCallback(async () => {
     if (!sql.trim()) {
-      message.warning('请输入 SQL 语句');
+      message.warning(t('请输入 SQL 语句'));
       return;
     }
     setLoading(true);
@@ -52,13 +54,13 @@ const Query: React.FC = () => {
         duration,
         rowCount,
       });
-      message.success(`查询成功，返回 ${rowCount} 行`);
+      message.success(t('查询成功，返回 {n} 行', { n: rowCount }));
     } catch (error: any) {
-      message.error(`查询失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('查询失败: {reason}', { reason: error.response?.data?.message || error.message }));
     } finally {
       setLoading(false);
     }
-  }, [sql, addHistory, message]);
+  }, [sql, addHistory, message, t]);
 
   const { fields, rows, hasTime } = useMemo(
     () => (result ? shapeResult(result) : { fields: [] as Field[], rows: [], hasTime: false }),
@@ -93,7 +95,7 @@ const Query: React.FC = () => {
 
   return (
     <div>
-      <Card title="SQL 查询" size="small">
+      <Card title={t('SQL 查询')} size="small">
         <Editor
           height="200px"
           defaultLanguage="sql"
@@ -110,14 +112,14 @@ const Query: React.FC = () => {
         />
         <Space style={{ marginTop: 16 }}>
           <Button type="primary" icon={<PlayCircleOutlined />} loading={loading} onClick={handleExecute}>
-            执行
+            {t('执行')}
           </Button>
           <Button icon={<ClearOutlined />} onClick={() => { setSql(''); setResult(null); }}>
-            清空
+            {t('清空')}
           </Button>
           {result && (
             <Button icon={<ExportOutlined />} onClick={handleExportCSV}>
-              导出 CSV
+              {t('导出 CSV')}
             </Button>
           )}
         </Space>
@@ -126,7 +128,7 @@ const Query: React.FC = () => {
       {result && (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col xs={24} lg={12}>
-            <Card title="结果表格" size="small">
+            <Card title={t('结果表格')} size="small">
               <Table
                 dataSource={rows}
                 columns={columns}
@@ -137,7 +139,7 @@ const Query: React.FC = () => {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="时序曲线" size="small">
+            <Card title={t('时序曲线')} size="small">
               {hasTime ? (
                 <TimeSeriesChart
                   title={chartTitleOf(sql)}
@@ -146,7 +148,7 @@ const Query: React.FC = () => {
                   height={400}
                 />
               ) : (
-                <Empty description="结果没有时间轴，无法绘制时序曲线" />
+                <Empty description={t('结果没有时间轴，无法绘制时序曲线')} />
               )}
             </Card>
           </Col>

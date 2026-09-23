@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Card, Table, Button, Space, Spin, Modal, Form, Input, Select, Popconfirm, Alert } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { queryRows, nonQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 import type { UserInfo } from '../../types/api';
 
 /** Only the password is a string literal; role and user names are identifiers. */
@@ -31,6 +32,7 @@ const UserManagement: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -45,7 +47,7 @@ const UserManagement: React.FC = () => {
       setRoles(roleRows.map((row) => String(row.Role)));
       setError('');
     } catch (err: any) {
-      setError(`获取用户列表失败: ${err.response?.data?.message || err.message}`);
+      setError(t('获取用户列表失败: {msg}', { msg: err.response?.data?.message || err.message }));
     } finally {
       setLoading(false);
     }
@@ -61,36 +63,36 @@ const UserManagement: React.FC = () => {
       if (values.role) {
         await nonQuery(`GRANT ROLE \`${values.role}\` TO ${values.username}`);
       }
-      message.success('用户创建成功');
+      message.success(t('用户创建成功'));
       setModalOpen(false);
       form.resetFields();
       fetchUsers();
     } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('创建失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const handleDelete = async (username: string) => {
     try {
       await nonQuery(`DROP USER ${username}`);
-      message.success('用户删除成功');
+      message.success(t('用户删除成功'));
       fetchUsers();
     } catch (error: any) {
-      message.error(`删除失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('删除失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const columns = [
-    { title: '用户 ID', dataIndex: 'userId', key: 'userId' },
-    { title: '用户名', dataIndex: 'username', key: 'username' },
+    { title: t('用户 ID'), dataIndex: 'userId', key: 'userId' },
+    { title: t('用户名'), dataIndex: 'username', key: 'username' },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: any, record: UserInfo) => (
         <Space>
-          <Popconfirm title="确定删除该用户吗？" onConfirm={() => handleDelete(record.username)}>
+          <Popconfirm title={t('确定删除该用户吗？')} onConfirm={() => handleDelete(record.username)}>
             <Button type="link" danger>
-              删除
+              {t('删除')}
             </Button>
           </Popconfirm>
         </Space>
@@ -101,15 +103,15 @@ const UserManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="用户管理"
+        title={t('用户管理')}
         size="small"
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchUsers}>
-              刷新
+              {t('刷新')}
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              创建用户
+              {t('创建用户')}
             </Button>
           </Space>
         }
@@ -129,30 +131,30 @@ const UserManagement: React.FC = () => {
         </Spin>
       </Card>
 
-      <Modal title="创建用户" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
+      <Modal title={t('创建用户')} open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleCreate} initialValues={{ role: undefined }}>
           <Form.Item
             name="username"
-            label="用户名"
+            label={t('用户名')}
             rules={[
-              { required: true, message: '请输入用户名' },
+              { required: true, message: t('请输入用户名') },
               {
                 pattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
-                message: '仅限字母、数字和下划线，且不能以数字开头',
+                message: t('仅限字母、数字和下划线，且不能以数字开头'),
               },
             ]}
           >
             <Input placeholder="manager_a" />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+          <Form.Item name="password" label={t('密码')} rules={[{ required: true, message: t('请输入密码') }]}>
             <Input.Password placeholder="******" />
           </Form.Item>
           <Form.Item
             name="role"
-            label="角色"
-            extra={roles.length ? undefined : '集群还没有角色，可先执行 CREATE ROLE 再回来授权。'}
+            label={t('角色')}
+            extra={roles.length ? undefined : t('集群还没有角色，可先执行 CREATE ROLE 再回来授权。')}
           >
-            <Select allowClear placeholder="请选择角色">
+            <Select allowClear placeholder={t('请选择角色')}>
               {roles.map((role) => (
                 <Select.Option key={role} value={role}>
                   {role}
@@ -162,7 +164,7 @@ const UserManagement: React.FC = () => {
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              创建
+              {t('创建')}
             </Button>
           </Form.Item>
         </Form>

@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Card, Row, Col, Spin, Alert, Button, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { fastLastQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 const { Text } = Typography;
 
@@ -31,6 +32,7 @@ const LatestValues: React.FC = () => {
   const [values, setValues] = useState<LatestValue[]>([]);
   const [loading, setLoading] = useState(false);
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchLatest = async () => {
     setLoading(true);
@@ -55,7 +57,7 @@ const LatestValues: React.FC = () => {
         }))
       );
     } catch (error: any) {
-      message.error(`获取最新值失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('获取最新值失败: {msg}', { msg: error.response?.data?.message || error.message }));
     } finally {
       setLoading(false);
     }
@@ -70,17 +72,17 @@ const LatestValues: React.FC = () => {
   return (
     <div>
       <Card
-        title="最新值面板"
+        title={t('最新值面板')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchLatest}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Spin spinning={loading}>
           {values.length === 0 ? (
-            <Alert description="暂无最新值数据" type="info" showIcon />
+            <Alert description={t('暂无最新值数据')} type="info" showIcon />
           ) : (
             <Row gutter={[16, 16]}>
               {values.map((item) => (

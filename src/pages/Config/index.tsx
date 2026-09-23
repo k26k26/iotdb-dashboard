@@ -18,11 +18,13 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Alert, Button, Card, Spin, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { getConfigurations } from '../../services/metadata';
+import { t, useI18n } from '../../i18n';
 import type { ConfigInfo } from '../../types/api';
 
-const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
+const describe = (err: any): string => err.response?.data?.message || err.message || t('请求失败');
 
 const ConfigManagement: React.FC = () => {
+  const { t } = useI18n();
   const [configs, setConfigs] = useState<ConfigInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ const ConfigManagement: React.FC = () => {
       setConfigs([]);
       const detail = describe(err);
       setError(detail);
-      message.error(`获取配置失败: ${detail}`);
+      message.error(t('获取配置失败: {detail}', { detail }));
     } finally {
       setLoading(false);
     }
@@ -50,30 +52,30 @@ const ConfigManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="系统配置"
+        title={t('系统配置')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchConfigs}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Spin spinning={loading}>
           {error ? (
-            <Alert type="error" showIcon title="无法读取集群参数" description={error} />
+            <Alert type="error" showIcon title={t('无法读取集群参数')} description={error} />
           ) : (
             <Table
               dataSource={configs}
               rowKey="variable"
               columns={[
-                { title: '参数名', dataIndex: 'variable', key: 'variable', width: 320 },
-                { title: '参数值', dataIndex: 'value', key: 'value' },
+                { title: t('参数名'), dataIndex: 'variable', key: 'variable', width: 320 },
+                { title: t('参数值'), dataIndex: 'value', key: 'value' },
               ]}
               size="small"
               pagination={false}
               scroll={{ x: 'max-content' }}
               locale={{
-                emptyText: <Alert type="info" showIcon title="集群没有返回任何参数" description="查询成功，但 information_schema.configurations 是空表。" />,
+                emptyText: <Alert type="info" showIcon title={t('集群没有返回任何参数')} description={t('查询成功，但 information_schema.configurations 是空表。')} />,
               }}
             />
           )}

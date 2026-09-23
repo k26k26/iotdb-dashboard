@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Table, Button, message, Spin, Alert } from 'antd';
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons';
 import { query, nonQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 interface QueryInfo {
   queryId: string;
@@ -28,10 +29,11 @@ interface QueryInfo {
 }
 
 const QueryCenter: React.FC = () => {
+  const { t } = useI18n();
   const [queries, setQueries] = useState<QueryInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchQueries = async () => {
+  const fetchQueries = useCallback(async () => {
     setLoading(true);
     try {
       const result = await query('SHOW QUERIES');
@@ -45,35 +47,35 @@ const QueryCenter: React.FC = () => {
         }))
       );
     } catch (error) {
-      message.error('获取查询列表失败');
+      message.error(t('获取查询列表失败'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     fetchQueries();
     const interval = setInterval(fetchQueries, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchQueries]);
 
   const handleStopQuery = async (queryId: string) => {
     try {
       await nonQuery(`STOP QUERY ${queryId}`);
-      message.success('查询已停止');
+      message.success(t('查询已停止'));
       fetchQueries();
     } catch (error: any) {
-      message.error(`停止失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('停止失败: {reason}', { reason: error.response?.data?.message || error.message }));
     }
   };
 
   const columns = [
     { title: 'Query ID', dataIndex: 'queryId', key: 'queryId' },
     { title: 'SQL', dataIndex: 'sql', key: 'sql', ellipsis: true, width: '40%' },
-    { title: '开始时间', dataIndex: 'startTime', key: 'startTime' },
-    { title: '耗时 (ms)', dataIndex: 'elapsedTime', key: 'elapsedTime' },
+    { title: t('开始时间'), dataIndex: 'startTime', key: 'startTime' },
+    { title: t('耗时 (ms)'), dataIndex: 'elapsedTime', key: 'elapsedTime' },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: any, record: QueryInfo) => (
         <Button
@@ -82,7 +84,7 @@ const QueryCenter: React.FC = () => {
           icon={<StopOutlined />}
           onClick={() => handleStopQuery(record.queryId)}
         >
-          停止
+          {t('停止')}
         </Button>
       ),
     },
@@ -91,17 +93,17 @@ const QueryCenter: React.FC = () => {
   return (
     <div>
       <Card
-        title="查询中心"
+        title={t('查询中心')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchQueries}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Spin spinning={loading}>
           {queries.length === 0 ? (
-            <Alert description="暂无运行中查询" type="info" showIcon />
+            <Alert description={t('暂无运行中查询')} type="info" showIcon />
           ) : (
             <Table
               dataSource={queries.map((q) => ({ ...q, key: q.queryId }))}

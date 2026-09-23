@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { App as AntdApp, Alert, Button, Card, Select, Space, Spin, Table, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { queryRows } from '../../services/rest';
+import { t, useI18n } from '../../i18n';
+import type { Translate } from '../../i18n';
 import type { LineageNode } from '../../types/api';
 
 /** Tree paths are interpolated raw into `SHOW … **`, so keep them to path characters. */
 const PATH = /^[A-Za-z0-9_.]+$/;
 
-const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
+const describe = (err: any): string => err.response?.data?.message || err.message || t('请求失败');
 
 const kindColor = (kind: LineageNode['kind']): string =>
   (({ DATABASE: 'geekblue', NODE: 'default', DEVICE: 'green', MEASUREMENT: 'orange' }) as const)[kind];
@@ -52,6 +54,7 @@ const buildLineage = (
   database: string,
   devices: Record<string, any>[],
   timeseries: Record<string, any>[],
+  t: Translate,
 ): LineageNode => {
   const root: LineageNode = { key: database, title: database, kind: 'DATABASE', children: [] };
   devices.forEach((device) => {
@@ -59,8 +62,8 @@ const buildLineage = (
     if (!path.startsWith(`${database}.`)) return;
     const node = descend(root, path.slice(database.length + 1));
     node.kind = 'DEVICE';
-    const template = device.Template ? `模板 ${device.Template}` : '';
-    node.detail = [template, device.IsAligned === 'true' ? '对齐' : '', device['TTL(ms)']]
+    const template = device.Template ? t('模板 {name}', { name: device.Template }) : '';
+    node.detail = [template, device.IsAligned === 'true' ? t('对齐') : '', device['TTL(ms)']]
       .filter(Boolean)
       .join(' · ');
   });
@@ -68,7 +71,7 @@ const buildLineage = (
     const path = String(series.Timeseries ?? '');
     const parent = path.slice(0, path.lastIndexOf('.'));
     if (!path.startsWith(`${database}.`) || !parent.startsWith(`${database}.`)) return;
-    const detail = [series.DataType, series.ViewType === 'BASE' ? '' : `视图 ${series.ViewType}`]
+    const detail = [series.DataType, series.ViewType === 'BASE' ? '' : t('视图 {type}', { type: series.ViewType })]
       .filter(Boolean)
       .join(' · ');
     const measurement = descend(root, path.slice(database.length + 1));
@@ -87,11 +90,25 @@ const collapsibleKeys = (nodes: LineageNode[]): string[] =>
 const LineageAnalysis: React.FC = () => {
   const [databases, setDatabases] = useState<string[]>([]);
   const [database, setDatabase] = useState('');
-  const [tree, setTree] = useState<LineageNode[]>([]);
+  const [raw, setRaw] = useState<{
+    db: string;
+    devices: Record<string, any>[];
+    timeseries: Record<string, any>[];
+  } | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
+
+  const tree = useMemo(
+    () => (raw ? [buildLineage(raw.db, raw.devices, raw.timeseries, t)] : []),
+    [raw, t]
+  );
+
+  useEffect(() => {
+    setExpanded(collapsibleKeys(tree));
+  }, [tree]);
 
   useEffect(() => {
     queryRows('SHOW DATABASES')
@@ -111,15 +128,13 @@ const LineageAnalysis: React.FC = () => {
         queryRows(`SHOW DEVICES ${db}.**`),
         queryRows(`SHOW TIMESERIES ${db}.**`),
       ]);
-      const lineage = [buildLineage(db, devices, timeseries)];
-      setTree(lineage);
-      setExpanded(collapsibleKeys(lineage));
+      setRaw({ db, devices, timeseries });
       setError('');
     } catch (err: any) {
-      setTree([]);
+      setRaw(null);
       const detail = describe(err);
       setError(detail);
-      message.error(`获取血缘失败: ${detail}`);
+      message.error(t('获取血缘失败: {msg}', { msg: detail }));
     } finally {
       setLoading(false);
     }
@@ -132,26 +147,26 @@ const LineageAnalysis: React.FC = () => {
   return (
     <div>
       <Card
-        title="Schema 血缘分析"
+        title={t('Schema 血缘分析')}
         size="small"
         extra={
           <Space>
             <Select
               style={{ width: 220 }}
               value={database || undefined}
-              placeholder="数据库"
+              placeholder={t('数据库')}
               onChange={setDatabase}
               options={databases.map((item) => ({ label: item, value: item }))}
             />
             <Button icon={<ReloadOutlined />} onClick={() => fetchLineage(database)}>
-              刷新
+              {t('刷新')}
             </Button>
           </Space>
         }
       >
         <Spin spinning={loading}>
           {error ? (
-            <Alert type="error" showIcon title="无法读取 Schema 结构" description={error} />
+            <Alert type="error" showIcon title={t('无法读取 Schema 结构')} description={error} />
           ) : (
             <Table<LineageNode>
               dataSource={tree}
@@ -164,23 +179,23 @@ const LineageAnalysis: React.FC = () => {
                 onExpandedRowsChange: (keys) => setExpanded(keys as string[]),
               }}
               columns={[
-                { title: '路径', dataIndex: 'title', key: 'title' },
+                { title: t('路径'), dataIndex: 'title', key: 'title' },
                 {
-                  title: '层级',
+                  title: t('层级'),
                   dataIndex: 'kind',
                   key: 'kind',
                   width: 120,
                   render: (kind: LineageNode['kind']) => <Tag color={kindColor(kind)}>{kind}</Tag>,
                 },
-                { title: '来源 / 属性', dataIndex: 'detail', key: 'detail' },
+                { title: t('来源 / 属性'), dataIndex: 'detail', key: 'detail' },
               ]}
               locale={{
                 emptyText: (
                   <Alert
                     type="info"
                     showIcon
-                    title="该数据库下没有设备或测点"
-                    description="查询成功，但 SHOW DEVICES 与 SHOW TIMESERIES 都没有返回行。血缘由这两个语句拼装而成，IoTDB 没有 SHOW LINEAGE 这类语句。"
+                    title={t('该数据库下没有设备或测点')}
+                    description={t('查询成功，但 SHOW DEVICES 与 SHOW TIMESERIES 都没有返回行。血缘由这两个语句拼装而成，IoTDB 没有 SHOW LINEAGE 这类语句。')}
                   />
                 ),
               }}

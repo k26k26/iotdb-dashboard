@@ -17,10 +17,12 @@
 import { query, queryTableRows, assertRestOk } from './rest';
 import { shapeResult } from '../utils/queryResult';
 import { normalizeDevicePath } from '../utils/path';
+import { t, tx } from '../i18n';
+import type { Text } from '../i18n';
 import type { ShapedResult } from '../utils/queryResult';
 import type { ClusterReads, QualityReads, Readout } from '../utils/analysis';
 
-const describe = (error: any): string => error?.response?.data?.message || error?.message || '请求失败';
+const describe = (error: any): string => error?.response?.data?.message || error?.message || t('请求失败');
 
 /** Rows by the server's own column titles; the time axis arrives as `__time`, never as a value column. */
 const toRows = (shaped: ShapedResult): Record<string, unknown>[] =>
@@ -37,7 +39,7 @@ const toRows = (shaped: ShapedResult): Record<string, unknown>[] =>
  * A statement that came back non-200 stays visible as `ok: false`. That is why these helpers never throw
  * and why the callers use plain `Promise.all`: a rejection is data here, not an exception to propagate.
  */
-const readTree = async (label: string, sql: string, rowLimit = 20000): Promise<Readout> => {
+const readTree = async (label: Text, sql: string, rowLimit = 20000): Promise<Readout> => {
   try {
     const result = await query(sql, rowLimit);
     assertRestOk(result);
@@ -47,7 +49,7 @@ const readTree = async (label: string, sql: string, rowLimit = 20000): Promise<R
   }
 };
 
-const readTable = async (label: string, sql: string): Promise<Readout> => {
+const readTable = async (label: Text, sql: string): Promise<Readout> => {
   try {
     return { label, sql, ok: true, rows: await queryTableRows(sql) };
   } catch (error) {
@@ -57,12 +59,12 @@ const readTable = async (label: string, sql: string): Promise<Readout> => {
 
 export const readCluster = (): Promise<ClusterReads> =>
   Promise.all([
-    readTree('运行参数', 'SHOW VARIABLES'),
-    readTree('数据库列表', 'SHOW DATABASES'),
-    readTree('Region 列表', 'SHOW REGIONS'),
-    readTable('节点状态', 'SELECT node_id, node_type, status, version FROM information_schema.nodes'),
-    readTree('持续查询', 'SHOW CONTINUOUS QUERIES'),
-    readTree('触发器', 'SHOW TRIGGERS'),
+    readTree(tx('运行参数'), 'SHOW VARIABLES'),
+    readTree(tx('数据库列表'), 'SHOW DATABASES'),
+    readTree(tx('Region 列表'), 'SHOW REGIONS'),
+    readTable(tx('节点状态'), 'SELECT node_id, node_type, status, version FROM information_schema.nodes'),
+    readTree(tx('持续查询'), 'SHOW CONTINUOUS QUERIES'),
+    readTree(tx('触发器'), 'SHOW TRIGGERS'),
   ]).then(([variables, databases, regions, nodes, cqs, triggers]) => ({
     variables,
     databases,
@@ -76,10 +78,10 @@ export const readCluster = (): Promise<ClusterReads> =>
  * A path is interpolated into statements, so it only ever reaches the server in the bare dotted form
  * IoTDB accepts without quoting -- see `normalizePath()` in utils/path.
  */
-export const WINDOWS: Record<string, { label: string; duration: string; step: string; spanMs: number }> = {
-  '24h': { label: '近 24 小时', duration: '24h', step: '1h', spanMs: 86400000 },
-  '7d': { label: '近 7 天', duration: '7d', step: '1d', spanMs: 604800000 },
-  '30d': { label: '近 30 天', duration: '30d', step: '1d', spanMs: 2592000000 },
+export const WINDOWS: Record<string, { label: Text; duration: string; step: string; spanMs: number }> = {
+  '24h': { label: tx('近 24 小时'), duration: '24h', step: '1h', spanMs: 86400000 },
+  '7d': { label: tx('近 7 天'), duration: '7d', step: '1d', spanMs: 604800000 },
+  '30d': { label: tx('近 30 天'), duration: '30d', step: '1d', spanMs: 2592000000 },
 };
 
 export interface QualityOptions {
@@ -98,7 +100,7 @@ export async function readQuality(options: QualityOptions): Promise<QualityReads
   const window = WINDOWS[options.windowKey] || WINDOWS['7d'];
 
   const devices = await readTree(
-    '数据设备清单',
+    tx('数据设备清单'),
     `SHOW DEVICES ${path}.** LIMIT ${Math.max(1, Math.min(50, Math.trunc(deviceLimit)))}`
   );
   const usable = devices.rows
@@ -106,12 +108,12 @@ export async function readQuality(options: QualityOptions): Promise<QualityReads
     .filter((device) => normalizeDevicePath(device) !== null);
 
   const [last, buckets, ...points] = await Promise.all([
-    readTree('最近值', `SELECT last * FROM ${path}.**`),
+    readTree(tx('最近值'), `SELECT last * FROM ${path}.**`),
     readTree(
-      '分桶计数',
+      tx('分桶计数'),
       `SELECT count(*) FROM ${path}.** GROUP BY ([now() - ${window.duration}, now()), ${window.step})`
     ),
-    ...usable.map((device) => readTree(device, `SELECT * FROM ${device} LIMIT ${Math.max(1, Math.min(5000, Math.trunc(pointLimit)))}`)),
+    ...usable.map((device) => readTree(tx(device), `SELECT * FROM ${device} LIMIT ${Math.max(1, Math.min(5000, Math.trunc(pointLimit)))}`)),
   ]);
 
   return { path, devices, last, buckets, points };

@@ -19,6 +19,7 @@ import { Card, Table, Button, Spin, Alert, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { queryRows } from '../../services/rest';
 import { formatMillis, isServiceUp } from '../../utils/cluster';
+import { useI18n } from '../../i18n';
 import type { RegionInfo } from '../../types/api';
 
 const shown = (value: string | null) => value || '-';
@@ -49,6 +50,7 @@ const fetchRegions = async (): Promise<RegionInfo[]> => {
 };
 
 const RealTimeMonitoring: React.FC = () => {
+  const { t } = useI18n();
   const [regions, setRegions] = useState<RegionInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -59,7 +61,7 @@ const RealTimeMonitoring: React.FC = () => {
       setRegions(await fetchRegions());
       setError('');
     } catch (err: any) {
-      setError(`获取区域状态失败: ${err.response?.data?.message || err.message}`);
+      setError(String(err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -72,60 +74,60 @@ const RealTimeMonitoring: React.FC = () => {
   }, [refresh]);
 
   const columns = [
-    { title: '区域 ID', dataIndex: 'regionId', key: 'regionId' },
-    { title: '类型', dataIndex: 'type', key: 'type' },
+    { title: t('区域 ID'), dataIndex: 'regionId', key: 'regionId' },
+    { title: t('类型'), dataIndex: 'type', key: 'type' },
     {
-      title: '状态',
+      title: t('状态'),
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
         <Tag color={isServiceUp(status) ? 'success' : 'error'}>{status || '-'}</Tag>
       ),
     },
-    { title: '数据库', dataIndex: 'database', key: 'database', ellipsis: true },
-    { title: 'Series 槽', dataIndex: 'seriesSlotNum', key: 'seriesSlotNum' },
-    { title: 'Time 槽', dataIndex: 'timeSlotNum', key: 'timeSlotNum' },
+    { title: t('数据库'), dataIndex: 'database', key: 'database', ellipsis: true },
+    { title: t('Series 槽'), dataIndex: 'seriesSlotNum', key: 'seriesSlotNum' },
+    { title: t('Time 槽'), dataIndex: 'timeSlotNum', key: 'timeSlotNum' },
     { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
     {
-      title: 'RPC 地址',
+      title: t('RPC 地址'),
       dataIndex: 'rpcAddress',
       key: 'rpcAddress',
       render: (_: string, record: RegionInfo) => `${record.rpcAddress}:${record.rpcPort}`,
     },
-    { title: '角色', dataIndex: 'role', key: 'role' },
+    { title: t('角色'), dataIndex: 'role', key: 'role' },
     {
-      title: '创建时间',
+      title: t('创建时间'),
       dataIndex: 'createTime',
       key: 'createTime',
       render: (value: string) => formatMillis(value),
     },
-    { title: 'TsFile 大小', dataIndex: 'tsFileSize', key: 'tsFileSize', render: shown },
-    { title: '压缩比', dataIndex: 'compressionRatio', key: 'compressionRatio', render: ratio },
+    { title: t('TsFile 大小'), dataIndex: 'tsFileSize', key: 'tsFileSize', render: shown },
+    { title: t('压缩比'), dataIndex: 'compressionRatio', key: 'compressionRatio', render: ratio },
   ];
 
   return (
     <div>
       <Card
-        title="实时监控"
+        title={t('实时监控')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={refresh}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Typography.Paragraph type="secondary">
-          区域级槽位分配与存储用量，每 5 秒刷新一次。
+          {t('区域级槽位分配与存储用量，每 5 秒刷新一次。')}
         </Typography.Paragraph>
         <Spin spinning={loading}>
           {error ? (
-            <Alert type="error" showIcon title={error} />
+            <Alert type="error" showIcon title={t('获取区域状态失败: {msg}', { msg: error })} />
           ) : regions.length === 0 ? (
             <Alert
               type="info"
               showIcon
-              title="暂无区域数据"
-              description="查询成功，当前集群还没有区域。"
+              title={t('暂无区域数据')}
+              description={t('查询成功，当前集群还没有区域。')}
             />
           ) : (
             <Table

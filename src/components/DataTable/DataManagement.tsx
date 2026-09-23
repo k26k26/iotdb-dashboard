@@ -21,6 +21,8 @@ import { query, insertTablet } from '../../services/rest';
 import { shapeResult } from '../../utils/queryResult';
 import { normalizeDevicePath, normalizePath } from '../../utils/path';
 import { parseCsv, toCsv } from '../../utils/csv';
+import { tx, useI18n } from '../../i18n';
+import type { Text as I18nText } from '../../i18n';
 
 const { Text } = Typography;
 
@@ -28,7 +30,8 @@ const DATA_TYPES = ['INT32', 'INT64', 'FLOAT', 'DOUBLE', 'BOOLEAN', 'TEXT'];
 const BATCH_ROWS = 5000;
 const PREVIEW_ROWS = 5;
 
-const isTimeHeader = (name: string) => /^(time|timestamp|时间)$/i.test(name.trim());
+// Matches a CSV header cell written by a Chinese spreadsheet, i.e. file data, not UI copy.
+const isTimeHeader = (name: string) => /^(time|timestamp|时间)$/i.test(name.trim()); // i18n-ignore
 
 const filled = (cells: string[]) => cells.map((cell) => cell.trim()).filter((cell) => cell !== '');
 
@@ -74,40 +77,40 @@ interface ParsedFile {
 /**
  * Every column has to resolve to `<device>.<measurement>` before anything is sent. The CSV this page
  * exports carries full paths, so splitting on the last dot suffices; hand-written CSVs usually name the
- * measurements only, which is what the 目标设备 field covers. An unresolved column is reported by name
- * instead of going out -- the server answers an empty `device` with `code 305 … root. is not a legal
- * path` and a relative one with `code 305 Path does not exist.`, so guessing here only produced a blank
- * 设备 row plus a message nobody could act on.
+ * measurements only, which is what the target device field covers. An unresolved column is reported by
+ * name instead of going out -- the server answers an empty `device` with `code 305 … root. is not a
+ * legal path` and a relative one with `code 305 Path does not exist.`, so guessing here only produced
+ * a blank device row plus a message nobody could act on.
  */
 const resolveTargets = (parsed: ParsedFile, prefixRaw: string) => {
   const trimmed = prefixRaw.trim();
   const prefixDevice = trimmed ? normalizeDevicePath(trimmed) : '';
-  const issues: string[] = [];
+  const issues: I18nText[] = [];
   if (trimmed && !prefixDevice) {
     issues.push(
-      '「目标设备」不是合法路径：树模型的设备必须以 root. 开头，只能含字母、数字、下划线或中文，不能带空格、引号或通配符。'
+      tx('「目标设备」不是合法路径：树模型的设备必须以 root. 开头，只能含字母、数字、下划线或中文，不能带空格、引号或通配符。')
     );
   }
   const columns: ColumnPlan[] = [];
   parsed.dataCols.forEach(({ index, name }) => {
     const full = normalizePath(name);
     if (!full || full !== name) {
-      issues.push(`列「${name}」不是合法的时间序列路径（不要带引号、空格或通配符）。`);
+      issues.push(tx('列「{name}」不是合法的时间序列路径（不要带引号、空格或通配符）。', { name }));
       return;
     }
     const cut = full.lastIndexOf('.');
     const rawDevice = cut < 0 ? prefixDevice : full.slice(0, cut);
     const measurement = cut < 0 ? full : full.slice(cut + 1);
     if (!rawDevice) {
-      // A bad 目标设备 already says so once; repeating it per column buries the actual reason.
+      // A bad target device already says so once; repeating it per column buries the actual reason.
       if (!trimmed) {
-        issues.push(`列「${name}」只有测点名、没有设备前缀——请在上方「目标设备」里填这批测点属于哪台设备。`);
+        issues.push(tx('列「{name}」只有测点名、没有设备前缀——请在上方「目标设备」里填这批测点属于哪台设备。', { name }));
       }
       return;
     }
     const device = normalizeDevicePath(rawDevice);
     if (!device) {
-      issues.push(`列「${name}」的设备段「${rawDevice}」必须以 root. 开头。`);
+      issues.push(tx('列「{name}」的设备段「{device}」必须以 root. 开头。', { name, device: rawDevice }));
       return;
     }
     columns.push({
@@ -143,8 +146,9 @@ const DataManagement: React.FC = () => {
   const [prefix, setPrefix] = useState('');
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
   const [overrides, setOverrides] = useState<Record<number, string>>({});
-  const [parseError, setParseError] = useState('');
+  const [parseError, setParseError] = useState<I18nText | null>(null);
   const [importing, setImporting] = useState(false);
+  const { t } = useI18n();
 
   const resolved = useMemo(() => (parsed ? resolveTargets(parsed, prefix) : null), [parsed, prefix]);
   const issues = resolved?.issues ?? [];
@@ -181,9 +185,9 @@ const DataManagement: React.FC = () => {
       link.download = `iotdb_export_${Date.now()}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      message.success(`已导出 ${rows.length} 行`);
+      message.success(t('已导出 {n} 行', { n: rows.length }));
     } catch (error: any) {
-      message.error(`导出失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('导出失败: {msg}', { msg: error.response?.data?.message || error.message }));
     } finally {
       setExporting(false);
     }
@@ -192,7 +196,7 @@ const DataManagement: React.FC = () => {
   const onPickFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    setParseError('');
+    setParseError(null);
     setParsed(null);
     setOverrides({});
     if (!file) return;
@@ -203,17 +207,17 @@ const DataManagement: React.FC = () => {
         .map((name, index) => ({ name, index }))
         .filter(({ name, index }) => index !== timeIndex && name !== '');
       if (timeIndex < 0) {
-        setParseError('未找到 Time 列。导入要求每行带时间戳，请用本页面「导出数据」生成的 CSV。');
+        setParseError(tx('未找到 Time 列。导入要求每行带时间戳，请用本页面「导出数据」生成的 CSV。'));
         return;
       }
       if (!dataCols.length) {
-        setParseError('除时间外没有可导入的列。');
+        setParseError(tx('除时间外没有可导入的列。'));
         return;
       }
       const kept = rows.filter((row) => parseTime(row[timeIndex]) !== null);
       setParsed({ fileName: file.name, timeIndex, dataCols, allRows: rows, rows: kept, skipped: rows.length - kept.length });
     } catch (error: any) {
-      setParseError(`读取 CSV 失败: ${error.message}`);
+      setParseError(tx('读取 CSV 失败: {msg}', { msg: error.message }));
     }
   };
 
@@ -241,11 +245,17 @@ const DataManagement: React.FC = () => {
           });
         }
       }
-      message.success(`导入完成：${plan.rows.length} 行 × ${plan.columns.length} 列 / ${targets.length} 个设备`);
+      message.success(
+        t('导入完成：{rows} 行 × {cols} 列 / {devices} 个设备', {
+          rows: plan.rows.length,
+          cols: plan.columns.length,
+          devices: targets.length,
+        })
+      );
       setParsed(null);
       setOverrides({});
     } catch (error: any) {
-      message.error(`导入失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('导入失败: {msg}', { msg: error.response?.data?.message || error.message }));
     } finally {
       setImporting(false);
     }
@@ -262,22 +272,22 @@ const DataManagement: React.FC = () => {
 
   return (
     <div>
-      <Card title="数据管理" size="small">
+      <Card title={t('数据管理')} size="small">
         <Space wrap>
-          <Tooltip title="CSV 的列名如果只有测点名（temperature 而不是 root.sg.d1.temperature），就统统挂到这台设备下；列名本身带完整路径时以列名为准。树模型的设备路径必须以 root. 开头。">
+          <Tooltip title={t('CSV 的列名如果只有测点名（temperature 而不是 root.sg.d1.temperature），就统统挂到这台设备下；列名本身带完整路径时以列名为准。树模型的设备路径必须以 root. 开头。')}>
             <Text type="secondary">
-              目标设备 <InfoCircleOutlined />
+              {t('目标设备')} <InfoCircleOutlined />
             </Text>
           </Tooltip>
           <Input
-            placeholder="root.sg.d1（列名只写测点名时必填）"
+            placeholder={t('root.sg.d1（列名只写测点名时必填）')}
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
             style={{ width: 340 }}
             allowClear
           />
           <Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>
-            上传 CSV
+            {t('上传 CSV')}
           </Button>
           <input
             ref={fileRef}
@@ -287,7 +297,7 @@ const DataManagement: React.FC = () => {
             onChange={onPickFile}
           />
           <Button icon={<ExportOutlined />} onClick={exportCSV} loading={exporting}>
-            导出数据
+            {t('导出数据')}
           </Button>
         </Space>
 
@@ -296,17 +306,17 @@ const DataManagement: React.FC = () => {
             type="error"
             showIcon
             style={{ marginTop: 16 }}
-            title="这份 CSV 还没法导入"
+            title={t('这份 CSV 还没法导入')}
             description={
               <div>
-                {parseError && <div>{parseError}</div>}
+                {parseError && <div>{t(parseError)}</div>}
                 {parsed &&
-                  issues.slice(0, 8).map((line) => (
-                    <div key={line}>
-                      <code>{line}</code>
+                  issues.slice(0, 8).map((line, i) => (
+                    <div key={i}>
+                      <code>{t(line)}</code>
                     </div>
                   ))}
-                {parsed && issues.length > 8 && <div>另有 {issues.length - 8} 列有同类问题。</div>}
+                {parsed && issues.length > 8 && <div>{t('另有 {n} 列有同类问题。', { n: issues.length - 8 })}</div>}
               </div>
             }
           />
@@ -319,29 +329,36 @@ const DataManagement: React.FC = () => {
             style={{ marginTop: 16 }}
             title={
               <Space>
-                <span>导入预览：{parsed?.fileName}</span>
+                <span>{t('导入预览：{name}', { name: parsed?.fileName ?? '' })}</span>
                 <Text type="secondary">
-                  {plan.rows.length} 行 × {plan.columns.length} 列 / {devices.size} 个设备
-                  {plan.skipped > 0 ? `，跳过 ${plan.skipped} 行无有效时间戳` : ''}
+                  {t('{rows} 行 × {cols} 列 / {devices} 个设备', {
+                    rows: plan.rows.length,
+                    cols: plan.columns.length,
+                    devices: devices.size,
+                  })}
+                  {plan.skipped > 0 ? t('，跳过 {n} 行无有效时间戳', { n: plan.skipped }) : ''}
                 </Text>
               </Space>
             }
             extra={
               <Space>
-                <Button onClick={() => setParsed(null)}>取消</Button>
+                <Button onClick={() => setParsed(null)}>{t('取消')}</Button>
                 <Button
                   type="primary"
                   loading={importing}
                   disabled={plan.rows.length === 0}
                   onClick={() =>
                     modal.confirm({
-                      title: '确认写入 IoTDB？',
-                      content: `将向 ${devices.size} 个设备写入 ${plan.rows.length} 行，同时间戳的同测点会被覆盖。`,
+                      title: t('确认写入 IoTDB？'),
+                      content: t('将向 {devices} 个设备写入 {rows} 行，同时间戳的同测点会被覆盖。', {
+                        devices: devices.size,
+                        rows: plan.rows.length,
+                      }),
                       onOk: runImport,
                     })
                   }
                 >
-                  导入
+                  {t('导入')}
                 </Button>
               </Space>
             }
@@ -352,17 +369,17 @@ const DataManagement: React.FC = () => {
               scroll={{ y: 240 }}
               dataSource={planData}
               columns={[
-                { title: '设备', dataIndex: 'device', key: 'device' },
-                { title: '测点', dataIndex: 'measurement', key: 'measurement' },
+                { title: t('设备'), dataIndex: 'device', key: 'device' },
+                { title: t('测点'), dataIndex: 'measurement', key: 'measurement' },
                 {
-                  title: '数据类型',
+                  title: t('数据类型'),
                   key: 'dataType',
                   width: 140,
                   render: (_: unknown, record: ColumnPlan & { key: number }) => (
                     <Select
                       size="small"
                       value={record.dataType}
-                      options={DATA_TYPES.map((t) => ({ value: t, label: t }))}
+                      options={DATA_TYPES.map((type) => ({ value: type, label: type }))}
                       onChange={(dataType) => changeType(record.index, dataType)}
                     />
                   ),

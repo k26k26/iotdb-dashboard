@@ -21,6 +21,7 @@ import TimeSeriesChart from '../../components/TimeSeriesChart';
 import { query, assertRestOk } from '../../services/rest';
 import { shapeResult, toChartSeries, chartTitleOf } from '../../utils/queryResult';
 import type { QueryResult } from '../../types/api';
+import { useI18n } from '../../i18n';
 
 interface ChartConfig {
   id: string;
@@ -30,15 +31,16 @@ interface ChartConfig {
 }
 
 const ChartPanel: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
+  const { t } = useI18n();
   const shaped = useMemo(() => shapeResult(chart.data), [chart.data]);
   const series = useMemo(() => toChartSeries(shaped, chart.sql), [shaped, chart.sql]);
 
   if (!chart.data) return null;
   if (shaped.rows.length === 0) {
-    return <Empty description="查询没有返回数据，请确认路径与设备是否存在" />;
+    return <Empty description={t('查询没有返回数据，请确认路径与设备是否存在')} />;
   }
-  if (!shaped.hasTime) return <Empty description="结果没有时间轴，无法绘制时序曲线" />;
-  if (series.length === 0) return <Empty description="查询没有返回数值列" />;
+  if (!shaped.hasTime) return <Empty description={t('结果没有时间轴，无法绘制时序曲线')} />;
+  if (series.length === 0) return <Empty description={t('查询没有返回数值列')} />;
 
   return (
     <TimeSeriesChart
@@ -51,15 +53,16 @@ const ChartPanel: React.FC<{ chart: ChartConfig }> = ({ chart }) => {
 };
 
 const Visualization: React.FC = () => {
+  const { t } = useI18n();
   const [charts, setCharts] = useState<ChartConfig[]>([]);
   const [newSql, setNewSql] = useState('SELECT s1 FROM root.sg.d1 LIMIT 100');
-  const [newTitle, setNewTitle] = useState('新图表');
+  const [newTitle, setNewTitle] = useState(() => t('新图表'));
   const [adding, setAdding] = useState(false);
   const { message } = AntdApp.useApp();
 
   const handleAddChart = async () => {
     if (!newSql.trim()) {
-      message.warning('请输入 SQL 语句');
+      message.warning(t('请输入 SQL 语句'));
       return;
     }
     setAdding(true);
@@ -70,9 +73,9 @@ const Visualization: React.FC = () => {
         ...charts,
         { id: Date.now().toString(), sql: newSql, title: newTitle, data },
       ]);
-      message.success('图表添加成功');
+      message.success(t('图表添加成功'));
     } catch (error: any) {
-      message.error(`查询失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('查询失败: {reason}', { reason: error.response?.data?.message || error.message }));
     } finally {
       setAdding(false);
     }
@@ -84,23 +87,23 @@ const Visualization: React.FC = () => {
 
   return (
     <div>
-      <Card title="可视化看板" size="small">
+      <Card title={t('可视化看板')} size="small">
         <Space align="start">
           <Input
-            placeholder="图表标题"
+            placeholder={t('图表标题')}
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             style={{ width: 200 }}
           />
           <Input.TextArea
-            placeholder="输入 SQL"
+            placeholder={t('输入 SQL')}
             value={newSql}
             onChange={(e) => setNewSql(e.target.value)}
             autoSize={{ minRows: 2, maxRows: 4 }}
             style={{ width: 400 }}
           />
           <Button type="primary" icon={<PlusOutlined />} loading={adding} onClick={handleAddChart}>
-            添加图表
+            {t('添加图表')}
           </Button>
         </Space>
       </Card>

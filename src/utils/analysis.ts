@@ -15,13 +15,15 @@
  */
 
 import { formatTimestamp } from './formatter';
+import { t, tx } from '../i18n';
+import type { Text } from '../i18n';
 
 /**
  * One statement, answered or not. A rejected statement stays a Readout with `ok: false` because "we could
- * not read this" is itself a conclusion -- it must never render as an empty "暂无数据" panel.
+ * not read this" is itself a conclusion -- it must never render as an empty "暂无数据" panel. // i18n-ignore
  */
 export interface Readout {
-  label: string;
+  label: Text;
   sql: string;
   ok: boolean;
   error?: string;
@@ -31,22 +33,22 @@ export interface Readout {
 
 export type FindingLevel = 'critical' | 'warn' | 'info' | 'pass';
 
-export type FindingGroup = '集群' | '任务' | '数据质量';
+export type FindingGroup = '集群' | '任务' | '数据质量'; // i18n-ignore
 
 export interface Evidence {
   sql: string;
   rows: Record<string, unknown>[];
   /** What this evidence cannot prove -- the part that stops a rule from over-claiming. */
-  note?: string;
+  note?: Text;
 }
 
 export interface Finding {
   key: string;
   level: FindingLevel;
   group: FindingGroup;
-  title: string;
-  detail: string;
-  advice?: string;
+  title: Text;
+  detail: Text;
+  advice?: Text;
   evidence: Evidence;
 }
 
@@ -74,31 +76,31 @@ const num = (value: unknown): number | null => {
 
 const round = (value: number, digits = 3): number => Number(value.toFixed(digits));
 
-const UNITS: [number, string][] = [
-  [86400000, '天'],
-  [3600000, '小时'],
-  [60000, '分钟'],
-  [1000, '秒'],
+const UNITS: [number, Text][] = [
+  [86400000, tx('天')],
+  [3600000, tx('小时')],
+  [60000, tx('分钟')],
+  [1000, tx('秒')],
 ];
 
 /** A duration a person can read; the page shows millisecond counts nowhere. */
 export const humanSpan = (ms: number): string => {
   if (!Number.isFinite(ms) || ms < 0) return '-';
   for (const [size, label] of UNITS) {
-    if (ms >= size) return `${Math.round(ms / size)} ${label}`;
+    if (ms >= size) return `${Math.round(ms / size)} ${t(label)}`;
   }
-  return `${Math.round(ms)} 毫秒`;
+  return `${Math.round(ms)} ${t('毫秒')}`;
 };
 
 const failedFindings = (reads: Readout[], group: FindingGroup): Finding[] =>
   reads
     .filter((read) => !read.ok)
     .map((read) => ({
-      key: `failed-${read.label}`,
+      key: `failed-${read.label.key}`,
       level: 'warn' as FindingLevel,
       group,
-      title: `没读到：${read.label}`,
-      detail: read.error || '请求失败',
+      title: tx('没读到：{label}', { label: read.label.key }),
+      detail: read.error ? tx(read.error) : tx('请求失败'),
       evidence: { sql: read.sql, rows: [] },
     }));
 
@@ -113,7 +115,7 @@ const fewRows = (rows: Record<string, unknown>[], limit = 8) => rows.slice(0, li
  * read is reported as unreadable rather than guessed.
  */
 export function clusterFindings(reads: ClusterReads): Finding[] {
-  const out = failedFindings(Object.values(reads), '集群');
+  const out = failedFindings(Object.values(reads), '集群'); // i18n-ignore
   const vars = lookup(reads.variables, 'Variable', 'Value');
 
   const dataRf = num(vars.DataReplicationFactor);
@@ -123,15 +125,15 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'replication',
       level: single ? 'critical' : 'pass',
-      group: '集群',
+      group: '集群', // i18n-ignore
       title: single
-        ? `数据副本 ${dataRf} 份、元数据副本 ${schemaRf} 份：一块盘坏就丢数据`
-        : `数据副本 ${dataRf} 份、元数据副本 ${schemaRf} 份`,
+        ? tx('数据副本 {data} 份、元数据副本 {schema} 份：一块盘坏就丢数据', { data: dataRf, schema: schemaRf })
+        : tx('数据副本 {data} 份、元数据副本 {schema} 份', { data: dataRf, schema: schemaRf }),
       detail: single
-        ? '共识层不会为你保留第二份拷贝，region 落盘的那一块就是唯一副本。'
-        : '副本数足够时，单节点掉线不会丢已确认的写入。',
+        ? tx('共识层不会为你保留第二份拷贝，region 落盘的那一块就是唯一副本。')
+        : tx('副本数足够时，单节点掉线不会丢已确认的写入。'),
       advice: single
-        ? '集群化部署把 data_replication_factor / schema_replication_factor 调到 3（需要 3 个 DataNode）。单机改不了这个性质，只能定期 FLUSH 再 LOAD 到机器外面。'
+        ? tx('集群化部署把 data_replication_factor / schema_replication_factor 调到 3（需要 3 个 DataNode）。单机改不了这个性质，只能定期 FLUSH 再 LOAD 到机器外面。')
         : undefined,
       evidence: {
         sql: 'SHOW VARIABLES',
@@ -145,15 +147,13 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'disk-threshold',
       level: 'info',
-      group: '集群',
-      title: `磁盘告警水位是剩余比例的 ${(diskWarn * 100).toFixed(0)}%，但当前剩余量读不到`,
-      detail:
-        '这个阈值说的是剩余空间比例，服务端在它之下会把节点标成告警并拒绝新写入。' +
-        '这一页拿不到"现在还剩多少"：SHOW VARIABLES 和 information_schema.configurations 返回的都是同一批 15 个键，里面没有磁盘余量。',
+      group: '集群', // i18n-ignore
+      title: tx('磁盘告警水位是剩余比例的 {pct}%，但当前剩余量读不到', { pct: (diskWarn * 100).toFixed(0) }),
+      detail: tx('这个阈值说的是剩余空间比例，服务端在它之下会把节点标成告警并拒绝新写入。这一页拿不到"现在还剩多少"：SHOW VARIABLES 和 information_schema.configurations 返回的都是同一批 15 个键，里面没有磁盘余量。'),
       evidence: {
         sql: 'SHOW VARIABLES',
         rows: reads.variables.rows.filter((row) => /DiskSpace|Disk/.test(String(row.Variable))),
-        note: '想确认水位只能看服务端日志或监控指标，本页不替它编一个数字。',
+        note: tx('想确认水位只能看服务端日志或监控指标，本页不替它编一个数字。'),
       },
     });
   }
@@ -164,11 +164,11 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'time-partition',
       level: 'info',
-      group: '集群',
-      title: `一个时间分区 ${humanSpan(partition)}，分区原点${origin === 0 ? '按 epoch（1970）对齐' : `为 ${origin}`}`,
-      detail:
-        '分区越细，单条查询要扫的 region 越多；分区越粗，删除旧数据和按时间段冷热分层的粒度越差。' +
-        '每台设备的保留期在 SHOW DEVICES 的 TTL(ms) 列里，见数据质量那一组。',
+      group: '集群', // i18n-ignore
+      title: origin === 0
+        ? tx('一个时间分区 {span}，分区原点按 epoch（1970）对齐', { span: humanSpan(partition) })
+        : tx('一个时间分区 {span}，分区原点为 {origin}', { span: humanSpan(partition), origin: String(origin) }),
+      detail: tx('分区越细，单条查询要扫的 region 越多；分区越粗，删除旧数据和按时间段冷热分层的粒度越差。每台设备的保留期在 SHOW DEVICES 的 TTL(ms) 列里，见数据质量那一组。'),
       evidence: {
         sql: 'SHOW VARIABLES',
         rows: reads.variables.rows.filter((row) => /^TimePartition/.test(String(row.Variable))),
@@ -182,11 +182,13 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'database-rf',
       level: loose.length ? 'warn' : 'pass',
-      group: '集群',
+      group: '集群', // i18n-ignore
       title: loose.length
-        ? `${loose.length}/${perDatabase.length} 个库的数据副本因子仍是 1`
-        : `${perDatabase.length} 个库的副本配置都大于 1`,
-      detail: `副本因子可以按库覆盖集群默认值；这些库还没覆盖：${loose.map((row) => row.Database).join('、') || '-'}`,
+        ? tx('{loose}/{total} 个库的数据副本因子仍是 1', { loose: loose.length, total: perDatabase.length })
+        : tx('{total} 个库的副本配置都大于 1', { total: perDatabase.length }),
+      detail: tx('副本因子可以按库覆盖集群默认值；这些库还没覆盖：{databases}', {
+        databases: loose.map((row) => row.Database).join(', ') || '-',
+      }),
       evidence: { sql: 'SHOW DATABASES', rows: fewRows(perDatabase) },
     });
   }
@@ -201,19 +203,25 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'regions',
       level: stalled.length ? 'critical' : 'pass',
-      group: '集群',
+      group: '集群', // i18n-ignore
       title: stalled.length
-        ? `${stalled.length}/${regions.length} 个 region 不是 Running`
-        : `${dataRegions.length} 个数据 region、${regions.length - dataRegions.length} 个元数据 region 全部 Running`,
+        ? tx('{stalled}/{total} 个 region 不是 Running', { stalled: stalled.length, total: regions.length })
+        : tx('{data} 个数据 region、{schema} 个元数据 region 全部 Running', {
+            data: dataRegions.length,
+            schema: regions.length - dataRegions.length,
+          }),
       detail: sized.length
-        ? `最大的是一个 region 约 ${Math.max(...sized.map((item) => item.size)).toLocaleString()} 字节。` +
-          '数据 region 的 TsFileSize 是刷新到磁盘之后才有的数字。'
-        : '所有数据 region 的 TsFileSize 都还是空：这台机器上的文件还没刷到磁盘（或未刷新过），所以体积这一项没有可比数字。',
-      advice: stalled.length ? 'Status 不是 Running 的 region 读不到写不进，先看对应 DataNode 的日志。' : undefined,
+        ? tx('最大的是一个 region 约 {size} 字节。数据 region 的 TsFileSize 是刷新到磁盘之后才有的数字。', {
+            size: Math.max(...sized.map((item) => item.size)).toLocaleString(),
+          })
+        : tx('所有数据 region 的 TsFileSize 都还是空：这台机器上的文件还没刷到磁盘（或未刷新过），所以体积这一项没有可比数字。'),
+      advice: stalled.length
+        ? tx('Status 不是 Running 的 region 读不到写不进，先看对应 DataNode 的日志。')
+        : undefined,
       evidence: {
         sql: 'SHOW REGIONS',
         rows: fewRows(stalled.length ? stalled : regions, 6),
-        note: '元数据 region 的 TsFileSize 为空、CompressionRatio 是 NaN，这是正常的，不是缺数据。',
+        note: tx('元数据 region 的 TsFileSize 为空、CompressionRatio 是 NaN，这是正常的，不是缺数据。'),
       },
     });
   }
@@ -225,15 +233,15 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
     out.push({
       key: 'nodes',
       level: down.length ? 'critical' : versions.length > 1 ? 'warn' : 'pass',
-      group: '集群',
+      group: '集群', // i18n-ignore
       title: down.length
-        ? `${down.length}/${nodes.length} 个节点不是 Running`
-        : `${nodes.length} 个节点全部 Running，版本 ${versions.join(' / ')}`,
-      detail: 'ConfigNode 管元数据与调度，DataNode 管数据；两者都在这里，缺一个这一组就不会出现。',
+        ? tx('{down}/{total} 个节点不是 Running', { down: down.length, total: nodes.length })
+        : tx('{total} 个节点全部 Running，版本 {versions}', { total: nodes.length, versions: versions.join(' / ') }),
+      detail: tx('ConfigNode 管元数据与调度，DataNode 管数据；两者都在这里，缺一个这一组就不会出现。'),
       evidence: {
         sql: 'SELECT node_id, node_type, status, version FROM information_schema.nodes',
         rows: fewRows(nodes, 6),
-        note: 'information_schema 只在 table 模型里，这条走的是 /rest/table/v1/query。',
+        note: tx('information_schema 只在 table 模型里，这条走的是 /rest/table/v1/query。'),
       },
     });
   }
@@ -242,22 +250,22 @@ export function clusterFindings(reads: ClusterReads): Finding[] {
 }
 
 export function scheduleFindings(reads: Pick<ClusterReads, 'cqs' | 'triggers'>): Finding[] {
-  const out = failedFindings(Object.values(reads), '任务');
-  const describe = (read: Readout, empty: string, present: string, group: FindingGroup, key: string) =>
+  const out = failedFindings(Object.values(reads), '任务'); // i18n-ignore
+  const describe = (read: Readout, empty: Text, present: Text, group: FindingGroup, key: string) =>
     ({
       key,
       level: read.rows.length ? 'pass' : 'info',
       group,
       title: read.rows.length ? present : empty,
       detail: read.rows.length
-        ? `${read.rows.length} 行，逐条见来源。`
-        : '这一项是空。它不判对错：这台机器上没有常驻计算，聚合是客户端每次拉数现算的。',
+        ? tx('{n} 行，逐条见来源。', { n: read.rows.length })
+        : tx('这一项是空。它不判对错：这台机器上没有常驻计算，聚合是客户端每次拉数现算的。'),
       evidence: { sql: read.sql, rows: fewRows(read.rows, 6) },
     }) as Finding;
 
   out.push(
-    describe(reads.cqs, '没有持续查询（CQ）', `${reads.cqs.rows.length} 个持续查询在跑`, '任务', 'cq'),
-    describe(reads.triggers, '没有触发器', `${reads.triggers.rows.length} 个触发器`, '任务', 'trigger')
+    describe(reads.cqs, tx('没有持续查询（CQ）'), tx('{n} 个持续查询在跑', { n: reads.cqs.rows.length }), '任务', 'cq'), // i18n-ignore
+    describe(reads.triggers, tx('没有触发器'), tx('{n} 个触发器', { n: reads.triggers.rows.length }), '任务', 'trigger') // i18n-ignore
   );
   return out;
 }
@@ -285,8 +293,8 @@ export interface Anomaly {
   name: string;
   timestamp: number;
   value: number;
-  rule: string;
-  score: string;
+  rule: Text;
+  score: Text;
 }
 
 export interface SeriesAnalysis {
@@ -373,8 +381,8 @@ export const findAnomalies = (name: string, points: TimePoint[]): Anomaly[] => {
           name,
           timestamp: point.timestamp,
           value: point.value,
-          rule: '偏离中位数（MAD 归一）',
-          score: `z=${round(robustZ, 2)}`,
+          rule: tx('偏离中位数（MAD 归一）'),
+          score: tx('z={z}', { z: round(robustZ, 2) }),
         });
       }
     });
@@ -388,8 +396,8 @@ export const findAnomalies = (name: string, points: TimePoint[]): Anomaly[] => {
           name,
           timestamp: points[i].timestamp,
           value: points[i].value,
-          rule: '连续不变（卡值）',
-          score: `≥${run} 点相同`,
+          rule: tx('连续不变（卡值）'),
+          score: tx('≥{n} 点相同', { n: run }),
         });
       }
     } else {
@@ -404,8 +412,11 @@ export const findAnomalies = (name: string, points: TimePoint[]): Anomaly[] => {
           name,
           timestamp: point.timestamp,
           value: point.value,
-          rule: '采样间隔突变',
-          score: `距上一点 ${humanSpan(gap)}，通常是 ${humanSpan(profile.medianGapMs!)}`,
+          rule: tx('采样间隔突变'),
+          score: tx('距上一点 {gap}，通常是 {median}', {
+            gap: humanSpan(gap),
+            median: humanSpan(profile.medianGapMs!),
+          }),
         });
       }
     });
@@ -423,16 +434,16 @@ export const analyzeSeries = (read: Readout): SeriesAnalysis[] =>
   }));
 
 export function qualityFindings(reads: QualityReads, now: number): Finding[] {
-  const out = failedFindings([reads.devices, reads.last, reads.buckets, ...reads.points], '数据质量');
+  const out = failedFindings([reads.devices, reads.last, reads.buckets, ...reads.points], '数据质量'); // i18n-ignore
 
   if (reads.devices.ok && reads.devices.rows.length === 0) {
     out.push({
       key: 'no-device',
       level: 'warn',
-      group: '数据质量',
-      title: `${reads.path} 下面没有设备`,
-      detail: '语句执行成功、返回 0 行：这个路径没有写入过数据，或者拼错了。这不是查询失败。',
-      advice: '先去路径浏览器确认设备名，再回来体检。',
+      group: '数据质量', // i18n-ignore
+      title: tx('{path} 下面没有设备', { path: reads.path }),
+      detail: tx('语句执行成功、返回 0 行：这个路径没有写入过数据，或者拼错了。这不是查询失败。'),
+      advice: tx('先去路径浏览器确认设备名，再回来体检。'),
       evidence: { sql: reads.devices.sql, rows: [] },
     });
     return out;
@@ -444,17 +455,23 @@ export function qualityFindings(reads: QualityReads, now: number): Finding[] {
     out.push({
       key: 'ttl',
       level: 'info',
-      group: '数据质量',
+      group: '数据质量', // i18n-ignore
       title: ttl.length
-        ? `${ttl.length}/${reads.devices.rows.length} 台设备设了保留期，最短 ${humanSpan(Math.min(...ttl))}`
-        : `这些设备的 TTL(ms) 都是 ${ttlCells[0] || '空'}：数据不会自动过期`,
+        ? tx('{n}/{total} 台设备设了保留期，最短 {span}', {
+            n: ttl.length,
+            total: reads.devices.rows.length,
+            span: humanSpan(Math.min(...ttl)),
+          })
+        : ttlCells[0]
+          ? tx('这些设备的 TTL(ms) 都是 {value}：数据不会自动过期', { value: ttlCells[0] })
+          : tx('这些设备的 TTL(ms) 都是空：数据不会自动过期'),
       detail: ttl.length
-        ? '到期数据由服务端按时间分区整块删除，不需要你写删除任务。'
-        : 'INF 是建库默认值，不算配置错误；它的意思是磁盘只增不减，而这一页读不到当前剩余空间，所以只能提示到这里。',
+        ? tx('到期数据由服务端按时间分区整块删除，不需要你写删除任务。')
+        : tx('INF 是建库默认值，不算配置错误；它的意思是磁盘只增不减，而这一页读不到当前剩余空间，所以只能提示到这里。'),
       evidence: {
         sql: reads.devices.sql,
         rows: fewRows(reads.devices.rows, 6),
-        note: 'TTL 在 SHOW DEVICES 上才看得到：tree 模型的 SHOW DATABASES 只有 5 列，没有保留期。',
+        note: tx('TTL 在 SHOW DEVICES 上才看得到：tree 模型的 SHOW DATABASES 只有 5 列，没有保留期。'),
       },
     });
   }
@@ -470,22 +487,25 @@ export function qualityFindings(reads: QualityReads, now: number): Finding[] {
       out.push({
         key: 'freshness',
         level: newestAge > 86400000 ? 'warn' : 'pass',
-        group: '数据质量',
+        group: '数据质量', // i18n-ignore
         title: skew
-          ? `最新的时间戳比浏览器当前时间还晚 ${humanSpan(-newestAge)}：两边时钟不一致`
-          : `最新一次写入是 ${humanSpan(newestAge)}前，最久的一条是 ${humanSpan(now - oldest)}前`,
+          ? tx('最新的时间戳比浏览器当前时间还晚 {span}：两边时钟不一致', { span: humanSpan(-newestAge) })
+          : tx('最新一次写入是 {newest}前，最久的一条是 {oldest}前', {
+              newest: humanSpan(newestAge),
+              oldest: humanSpan(now - oldest),
+            }),
         detail: skew
-          ? '服务端（或写入端）的时钟走在本机前面。按这个偏差算，最新一批点落在未来，所以"多久没写"这一项在这里不可用，只报时钟差。'
+          ? tx('服务端（或写入端）的时钟走在本机前面。按这个偏差算，最新一批点落在未来，所以"多久没写"这一项在这里不可用，只报时钟差。')
           : staleCount
-            ? `${staleCount}/${stamps.length} 条序列的时间戳比最新的那条老得多，写入不均匀。`
-            : '所有序列的最近值时间戳彼此接近。',
+            ? tx('{n}/{total} 条序列的时间戳比最新的那条老得多，写入不均匀。', { n: staleCount, total: stamps.length })
+            : tx('所有序列的最近值时间戳彼此接近。'),
         evidence: {
           sql: reads.last.sql,
           rows: reads.last.rows
             .slice()
             .sort((a, b) => (readTime(b) ?? 0) - (readTime(a) ?? 0))
             .slice(0, 6),
-          note: '时间戳来自 timestamps 这一路，SELECT last * 的值/类型在 column_names 里。',
+          note: tx('时间戳来自 timestamps 这一路，SELECT last * 的值/类型在 column_names 里。'),
         },
       });
     }
@@ -503,15 +523,22 @@ export function qualityFindings(reads: QualityReads, now: number): Finding[] {
     out.push({
       key: 'buckets',
       level: gaps.length && overall >= 0.5 ? 'warn' : 'pass',
-      group: '数据质量',
-      title: `${reads.buckets.rows.length} 个时间分桶里 ${Math.round(overall * 100)}% 的计数是 0`,
+      group: '数据质量', // i18n-ignore
+      title: tx('{n} 个时间分桶里 {pct}% 的计数是 0', {
+        n: reads.buckets.rows.length,
+        pct: Math.round(overall * 100),
+      }),
       detail: gaps.length
-        ? `${gaps.length} 条序列有一半以上的分桶没有点，最空的这条是 ${seriesName(gaps[0].name, reads.path)}（${Math.round(gaps[0].ratio * 100)}%）。`
-        : '每个分桶都有数据。',
+        ? tx('{n} 条序列有一半以上的分桶没有点，最空的这条是 {name}（{pct}%）。', {
+            n: gaps.length,
+            name: seriesName(gaps[0].name, reads.path),
+            pct: Math.round(gaps[0].ratio * 100),
+          })
+        : tx('每个分桶都有数据。'),
       evidence: {
         sql: reads.buckets.sql,
         rows: fewRows(reads.buckets.rows, 8),
-        note: '分桶为 0 既可能是没写，也可能是这条序列那时还不存在，从计数上区分不出来。',
+        note: tx('分桶为 0 既可能是没写，也可能是这条序列那时还不存在，从计数上区分不出来。'),
       },
     });
   }
@@ -523,28 +550,34 @@ export function qualityFindings(reads: QualityReads, now: number): Finding[] {
     out.push({
       key: 'sample',
       level: usable.length ? (anomalies.length ? 'critical' : 'pass') : 'info',
-      group: '数据质量',
+      group: '数据质量', // i18n-ignore
       title: usable.length
         ? anomalies.length
-          ? `${anomalies.length} 个点被判为异常（${usable.length} 条序列样本充足）`
-          : `${usable.length} 条序列没有异常点（跳变 / 卡值 / 间隔突变）`
-        : `样本太少，这一项不下结论：最多的一条序列只有 ${Math.max(...analyses.map((item) => item.points.length))} 个点`,
+          ? tx('{n} 个点被判为异常（{series} 条序列样本充足）', { n: anomalies.length, series: usable.length })
+          : tx('{n} 条序列没有异常点（跳变 / 卡值 / 间隔突变）', { n: usable.length })
+        : tx('样本太少，这一项不下结论：最多的一条序列只有 {n} 个点', {
+            n: Math.max(...analyses.map((item) => item.points.length)),
+          }),
       detail: usable.length
-        ? `判定用的是 MAD 归一的偏离度（阈值 3.5）、连续 ${MIN_SAMPLE - 3} 点以上不变、间隔超过中位数 5 倍这三条规则。`
-        : `偏离统计至少需要 ${MIN_SAMPLE} 个点；这台机器上抽到的序列只有几个点，任何"异常"判定都是假信号，所以宁可空着。`,
+        ? tx('判定用的是 MAD 归一的偏离度（阈值 3.5）、连续 {short} 点以上不变、间隔超过中位数 5 倍这三条规则。', {
+            short: MIN_SAMPLE - 3,
+          })
+        : tx('偏离统计至少需要 {min} 个点；这台机器上抽到的序列只有几个点，任何"异常"判定都是假信号，所以宁可空着。', {
+            min: MIN_SAMPLE,
+          }),
       evidence: {
         sql: reads.points[0].sql,
         rows: analyses.slice(0, 6).map((item) => ({
-          序列: seriesName(item.name, reads.path),
-          点数: item.profile.points,
-          最小值: item.profile.min ?? '-',
-          最大值: item.profile.max ?? '-',
-          中位数: item.profile.median ?? '-',
+          序列: seriesName(item.name, reads.path), // i18n-ignore
+          点数: item.profile.points, // i18n-ignore
+          最小值: item.profile.min ?? '-', // i18n-ignore
+          最大值: item.profile.max ?? '-', // i18n-ignore
+          中位数: item.profile.median ?? '-', // i18n-ignore
           MAD: item.profile.mad ?? '-',
-          中位间隔: item.profile.medianGapMs ? humanSpan(item.profile.medianGapMs) : '-',
-          最后一点: item.profile.lastTs ? formatTimestamp(item.profile.lastTs) : '-',
+          中位间隔: item.profile.medianGapMs ? humanSpan(item.profile.medianGapMs) : '-', // i18n-ignore
+          最后一点: item.profile.lastTs ? formatTimestamp(item.profile.lastTs) : '-', // i18n-ignore
         })),
-        note: '每台设备各跑一次取原始点，这里显示第一台的语句。',
+        note: tx('每台设备各跑一次取原始点，这里显示第一台的语句。'),
       },
     });
   }

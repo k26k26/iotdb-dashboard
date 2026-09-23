@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Row, Col, Statistic, Spin, Alert, Tag, Table, Typography } from 'antd';
 import {
   DatabaseOutlined,
@@ -24,10 +24,12 @@ import {
 import { getNodes, getServices, getConnections, getCurrentQueries } from '../../services/metadata';
 import type { NodeInfo, ServiceInfo, ConnectionInfo, CurrentQuery } from '../../types/api';
 import { isServiceUp, formatMillis, queryColumns } from '../../utils/cluster';
+import { useI18n } from '../../i18n';
 
 const { Title } = Typography;
 
 const Dashboard: React.FC = () => {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
@@ -35,7 +37,7 @@ const Dashboard: React.FC = () => {
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
   const [queries, setQueries] = useState<CurrentQuery[]>([]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const [nodesResult, servicesResult, connectionsResult, queriesResult] = await Promise.allSettled([
       getNodes(),
@@ -46,26 +48,26 @@ const Dashboard: React.FC = () => {
     const failures: string[] = [];
     const read = <T,>(label: string, result: PromiseSettledResult<T[]>): T[] => {
       if (result.status === 'fulfilled') return result.value;
-      failures.push(`${label}：${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      failures.push(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
       return [];
     };
-    setNodes(read('节点', nodesResult));
-    setServices(read('服务', servicesResult));
-    setConnections(read('连接', connectionsResult));
-    setQueries(read('运行中查询', queriesResult));
+    setNodes(read(t('节点'), nodesResult));
+    setServices(read(t('服务'), servicesResult));
+    setConnections(read(t('连接'), connectionsResult));
+    setQueries(read(t('运行中查询'), queriesResult));
     setErrors(failures);
     setLoading(false);
-  };
+  }, [t]);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   return (
     <div>
-      <Title level={3}>IoTDB 仪表盘</Title>
+      <Title level={3}>{t('IoTDB 仪表盘')}</Title>
 
       <Spin spinning={loading}>
         {errors.length > 0 && (
@@ -73,8 +75,8 @@ const Dashboard: React.FC = () => {
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            title="部分数据加载失败"
-            description={errors.join('；')}
+            title={t('部分数据加载失败')}
+            description={errors.join('; ')}
           />
         )}
 
@@ -82,7 +84,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="节点数量"
+                title={t('节点数量')}
                 value={nodes.length}
                 prefix={<ClusterOutlined />}
               />
@@ -91,7 +93,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="服务数量"
+                title={t('服务数量')}
                 value={services.length}
                 prefix={<ApiOutlined />}
               />
@@ -100,7 +102,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="当前连接"
+                title={t('当前连接')}
                 value={connections.length}
                 prefix={<DatabaseOutlined />}
               />
@@ -109,7 +111,7 @@ const Dashboard: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="运行中查询"
+                title={t('运行中查询')}
                 value={queries.length}
                 prefix={<DatabaseOutlined />}
               />
@@ -119,9 +121,9 @@ const Dashboard: React.FC = () => {
 
         <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
           <Col xs={24} lg={12}>
-            <Card title="节点概览" size="small">
+            <Card title={t('节点概览')} size="small">
               {nodes.length === 0 ? (
-                <Alert description="暂无节点数据" type="info" showIcon />
+                <Alert description={t('暂无节点数据')} type="info" showIcon />
               ) : (
                 nodes.map((node) => (
                   <div key={node.nodeId} style={{ marginBottom: 8 }}>
@@ -140,9 +142,9 @@ const Dashboard: React.FC = () => {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="服务状态" size="small">
+            <Card title={t('服务状态')} size="small">
               {services.length === 0 ? (
-                <Alert description="暂无服务数据" type="info" showIcon />
+                <Alert description={t('暂无服务数据')} type="info" showIcon />
               ) : (
                 services.map((svc) => (
                   <div key={`${svc.serviceName}-${svc.dataNodeId}`} style={{ marginBottom: 8 }}>
@@ -156,9 +158,9 @@ const Dashboard: React.FC = () => {
           </Col>
         </Row>
 
-        <Card title="运行中查询" size="small" style={{ marginTop: 24 }}>
+        <Card title={t('运行中查询')} size="small" style={{ marginTop: 24 }}>
           {queries.length === 0 ? (
-            <Alert description="暂无运行中查询" type="info" showIcon />
+            <Alert description={t('暂无运行中查询')} type="info" showIcon />
           ) : (
             <Table
               dataSource={queries.map((q) => ({ ...q, key: q.queryId }))}
@@ -170,9 +172,9 @@ const Dashboard: React.FC = () => {
           )}
         </Card>
 
-        <Card title="当前连接" size="small" style={{ marginTop: 24 }}>
+        <Card title={t('当前连接')} size="small" style={{ marginTop: 24 }}>
           {connections.length === 0 ? (
-            <Alert description="暂无连接" type="info" showIcon />
+            <Alert description={t('暂无连接')} type="info" showIcon />
           ) : (
             <Table
               dataSource={connections.map((c) => ({ ...c, key: `${c.dataNodeId}-${c.sessionId}` }))}

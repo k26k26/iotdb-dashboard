@@ -19,6 +19,7 @@ import { Card, Table, Button, Spin, Alert, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { getPipes } from '../../services/metadata';
 import { formatMillis } from '../../utils/cluster';
+import { useI18n } from '../../i18n';
 import type { PipeInfo } from '../../types/api';
 
 /** STOPPED is recoverable, DROPPED is terminal -- worth telling apart. */
@@ -35,6 +36,7 @@ const isYes = (value: boolean | string): boolean => String(value).toLowerCase() 
 const shown = (value: string | null) => value || '-';
 
 const PipeManagement: React.FC = () => {
+  const { t } = useI18n();
   const [pipes, setPipes] = useState<PipeInfo[]>([]);
   const [loading, setLoading] = useState(false);
   // An empty list is a valid state here, so failures have to be reported separately.
@@ -46,11 +48,11 @@ const PipeManagement: React.FC = () => {
       setPipes(await getPipes());
       setError('');
     } catch (err: any) {
-      setError(`获取 Pipe 列表失败: ${err.response?.data?.message || err.message}`);
+      setError(t('获取 Pipe 列表失败: {msg}', { msg: err.response?.data?.message || err.message }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchPipes();
@@ -61,73 +63,74 @@ const PipeManagement: React.FC = () => {
   const columns = [
     { title: 'Pipe ID', dataIndex: 'pipeId', key: 'pipeId' },
     {
-      title: '创建时间',
+      title: t('创建时间'),
       dataIndex: 'creationTime',
       key: 'creationTime',
       render: (value: PipeInfo['creationTime']) => formatMillis(value),
     },
     {
-      title: '状态',
+      title: t('状态'),
       dataIndex: 'state',
       key: 'state',
       render: (state: string) => <Tag color={stateColor(state)}>{state}</Tag>,
     },
     {
-      title: '数据源',
+      title: t('数据源'),
       dataIndex: 'pipeSource',
       key: 'pipeSource',
       ellipsis: true,
       render: shown,
     },
     {
-      title: '处理器',
+      title: t('处理器'),
       dataIndex: 'pipeProcessor',
       key: 'pipeProcessor',
       ellipsis: true,
       render: shown,
     },
     {
-      title: '数据去向',
+      title: t('数据去向'),
       dataIndex: 'pipeSink',
       key: 'pipeSink',
       ellipsis: true,
       render: shown,
     },
     {
-      title: '异常信息',
+      title: t('异常信息'),
       dataIndex: 'exceptionMessage',
       key: 'exceptionMessage',
       ellipsis: true,
       render: shown,
     },
     {
-      title: '剩余事件数',
+      title: t('剩余事件数'),
       dataIndex: 'remainingEventCount',
       key: 'remainingEventCount',
       render: NUMERIC,
     },
     {
-      title: '预计剩余秒数',
+      title: t('预计剩余秒数'),
       dataIndex: 'estimatedRemainingSeconds',
       key: 'estimatedRemainingSeconds',
       render: NUMERIC,
     },
     {
-      title: '已降级',
+      title: t('已降级'),
       dataIndex: 'isDegraded',
       key: 'isDegraded',
-      render: (degraded: boolean) => (isYes(degraded) ? <Tag color="warning">是</Tag> : '否'),
+      render: (degraded: boolean) =>
+        isYes(degraded) ? <Tag color="warning">{t('是')}</Tag> : t('否'),
     },
   ];
 
   return (
     <div>
       <Card
-        title="数据管道管理"
+        title={t('数据管道管理')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchPipes}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
@@ -138,8 +141,8 @@ const PipeManagement: React.FC = () => {
             <Alert
               type="info"
               showIcon
-              title="暂无 Pipe"
-              description="查询成功，当前集群没有数据管道；需要时执行 CREATE PIPE 语句创建。"
+              title={t('暂无 Pipe')}
+              description={t('查询成功，当前集群没有数据管道；需要时执行 CREATE PIPE 语句创建。')}
             />
           ) : (
             <Table

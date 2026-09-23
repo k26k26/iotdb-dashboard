@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { App as AntdApp, Card, Table, Button, Space, Spin, Modal, Form, Input, Select, Popconfirm, Alert, Tag } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { queryRows, nonQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 import type { TriggerInfo } from '../../types/api';
 
 const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
@@ -48,6 +49,7 @@ const TriggerManagement: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [form] = Form.useForm();
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchTriggers = async () => {
     setLoading(true);
@@ -66,7 +68,7 @@ const TriggerManagement: React.FC = () => {
       );
       setError('');
     } catch (err: any) {
-      setError(`获取触发器列表失败: ${err.response?.data?.message || err.message}`);
+      setError(t('获取触发器列表失败: {msg}', { msg: err.response?.data?.message || err.message }));
     } finally {
       setLoading(false);
     }
@@ -84,7 +86,7 @@ const TriggerManagement: React.FC = () => {
       await nonQuery(
         `CREATE ${triggerType} TRIGGER ${triggerName} ${event} ON ${pathPattern} AS ${quote(className)}${uri}`
       );
-      message.success('触发器创建成功');
+      message.success(t('触发器创建成功'));
       setCreateError('');
       setModalOpen(false);
       form.resetFields();
@@ -94,40 +96,40 @@ const TriggerManagement: React.FC = () => {
       // A trigger is almost always refused server-side (class or jar missing); a toast that
       // disappears in three seconds leaves the table looking broken rather than empty.
       setCreateError(detail);
-      message.error(`创建失败: ${detail}`);
+      message.error(t('创建失败: {msg}', { msg: detail }));
     }
   };
 
   const handleDelete = async (triggerName: string) => {
     try {
       await nonQuery(`DROP TRIGGER ${triggerName}`);
-      message.success('触发器删除成功');
+      message.success(t('触发器删除成功'));
       fetchTriggers();
     } catch (err: any) {
-      message.error(`删除失败: ${err.response?.data?.message || err.message}`);
+      message.error(t('删除失败: {msg}', { msg: err.response?.data?.message || err.message }));
     }
   };
 
   const columns = [
-    { title: '触发器名', dataIndex: 'triggerName', key: 'triggerName' },
-    { title: '事件', dataIndex: 'event', key: 'event' },
-    { title: '类型', dataIndex: 'type', key: 'type' },
+    { title: t('触发器名'), dataIndex: 'triggerName', key: 'triggerName' },
+    { title: t('事件'), dataIndex: 'event', key: 'event' },
+    { title: t('类型'), dataIndex: 'type', key: 'type' },
     {
-      title: '状态',
+      title: t('状态'),
       dataIndex: 'state',
       key: 'state',
       render: (state: string) => <Tag color={stateColor(state)}>{state}</Tag>,
     },
-    { title: '路径', dataIndex: 'pathPattern', key: 'pathPattern', ellipsis: true },
-    { title: '实现类', dataIndex: 'className', key: 'className', ellipsis: true },
-    { title: '节点', dataIndex: 'nodeId', key: 'nodeId' },
+    { title: t('路径'), dataIndex: 'pathPattern', key: 'pathPattern', ellipsis: true },
+    { title: t('实现类'), dataIndex: 'className', key: 'className', ellipsis: true },
+    { title: t('节点'), dataIndex: 'nodeId', key: 'nodeId' },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: unknown, record: TriggerInfo) => (
-        <Popconfirm title="确定删除该触发器吗？" onConfirm={() => handleDelete(record.triggerName)}>
+        <Popconfirm title={t('确定删除该触发器吗？')} onConfirm={() => handleDelete(record.triggerName)}>
           <Button type="link" danger>
-            删除
+            {t('删除')}
           </Button>
         </Popconfirm>
       ),
@@ -137,15 +139,15 @@ const TriggerManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="触发器管理"
+        title={t('触发器管理')}
         size="small"
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchTriggers}>
-              刷新
+              {t('刷新')}
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              创建触发器
+              {t('创建触发器')}
             </Button>
           </Space>
         }
@@ -166,8 +168,8 @@ const TriggerManagement: React.FC = () => {
                   <Alert
                     type="info"
                     showIcon
-                    title="暂无触发器"
-                    description="查询成功，当前集群没有触发器。触发器是 DataNode 加载的 Java 类：要么把 jar 放进 DataNode 的触发器目录再创建，要么在下方「JAR 地址」里给出 URI —— 本机 trusted_uri_pattern 为 file:.*，只接受 DataNode 本地路径。本机也不支持 START / STOP TRIGGER，改配置只能删除后重建。"
+                    title={t('暂无触发器')}
+                    description={t('查询成功，当前集群没有触发器。触发器是 DataNode 加载的 Java 类：要么把 jar 放进 DataNode 的触发器目录再创建，要么在下方「JAR 地址」里给出 URI —— 本机 trusted_uri_pattern 为 file:.*，只接受 DataNode 本地路径。本机也不支持 START / STOP TRIGGER，改配置只能删除后重建。')}
                   />
                 ),
               }}
@@ -177,7 +179,7 @@ const TriggerManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title="创建触发器"
+        title={t('创建触发器')}
         open={modalOpen}
         onCancel={() => {
           setModalOpen(false);
@@ -189,7 +191,7 @@ const TriggerManagement: React.FC = () => {
           <Alert
             type="error"
             showIcon
-            title="服务端拒绝了这条 CREATE 语句"
+            title={t('服务端拒绝了这条 CREATE 语句')}
             description={createError}
             style={{ marginBottom: 16 }}
           />
@@ -202,15 +204,15 @@ const TriggerManagement: React.FC = () => {
         >
           <Form.Item
             name="triggerName"
-            label="触发器名"
+            label={t('触发器名')}
             rules={[
-              { required: true, message: '请输入触发器名' },
-              { pattern: NAME, message: '仅限字母、数字和下划线，且不能以数字开头' },
+              { required: true, message: t('请输入触发器名') },
+              { pattern: NAME, message: t('仅限字母、数字和下划线，且不能以数字开头') },
             ]}
           >
             <Input placeholder="trigger_1" />
           </Form.Item>
-          <Form.Item name="triggerType" label="类型" rules={[{ required: true }]}>
+          <Form.Item name="triggerType" label={t('类型')} rules={[{ required: true }]}>
             <Select>
               <Select.Option value="STATELESS">STATELESS</Select.Option>
               <Select.Option value="STATEFUL">STATEFUL</Select.Option>
@@ -218,9 +220,9 @@ const TriggerManagement: React.FC = () => {
           </Form.Item>
           <Form.Item
             name="event"
-            label="事件"
+            label={t('事件')}
             rules={[{ required: true }]}
-            extra="本版本仅支持插入事件，DELETE 事件会被服务端拒绝。"
+            extra={t('本版本仅支持插入事件，DELETE 事件会被服务端拒绝。')}
           >
             <Select>
               {['BEFORE INSERT', 'AFTER INSERT'].map((event) => (
@@ -232,32 +234,32 @@ const TriggerManagement: React.FC = () => {
           </Form.Item>
           <Form.Item
             name="pathPattern"
-            label="路径"
+            label={t('路径')}
             rules={[
-              { required: true, message: '请输入路径' },
-              { pattern: PATH, message: '仅允许字母、数字、下划线和点，例如 root.sg.d1' },
+              { required: true, message: t('请输入路径') },
+              { pattern: PATH, message: t('仅允许字母、数字、下划线和点，例如 root.sg.d1') },
             ]}
           >
             <Input placeholder="root.sg.d1" />
           </Form.Item>
           <Form.Item
             name="className"
-            label="实现类"
-            extra="触发器由 DataNode 加载的 Java 类实现，不是 SQL 语句。"
-            rules={[{ required: true, message: '请输入触发器类的全限定名' }]}
+            label={t('实现类')}
+            extra={t('触发器由 DataNode 加载的 Java 类实现，不是 SQL 语句。')}
+            rules={[{ required: true, message: t('请输入触发器类的全限定名') }]}
           >
             <Input placeholder="org.example.trigger.MyTrigger" />
           </Form.Item>
           <Form.Item
             name="jarUri"
-            label="JAR 地址"
-            extra="留空则由 DataNode 自行加载已放置的类；本机只信任 file: 前缀，所以填 DataNode 上的绝对路径，例如 file:/data/trigger/my.jar。"
+            label={t('JAR 地址')}
+            extra={t('留空则由 DataNode 自行加载已放置的类；本机只信任 file: 前缀，所以填 DataNode 上的绝对路径，例如 file:/data/trigger/my.jar。')}
           >
             <Input placeholder="file:/data/trigger/my.jar" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              创建
+              {t('创建')}
             </Button>
           </Form.Item>
         </Form>

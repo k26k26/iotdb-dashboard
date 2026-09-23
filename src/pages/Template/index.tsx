@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, Table, Button, Modal, Form, Input, Select, message, Space, Spin, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { query, nonQuery } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 interface TemplateInfo {
   name: string;
@@ -31,6 +32,7 @@ const TemplateManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const { t } = useI18n();
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -46,7 +48,7 @@ const TemplateManagement: React.FC = () => {
         }))
       );
     } catch (error) {
-      message.error('获取模板列表失败');
+      message.error(t('获取模板列表失败'));
     } finally {
       setLoading(false);
     }
@@ -64,37 +66,37 @@ const TemplateManagement: React.FC = () => {
       await nonQuery(
         `CREATE SCHEMA TEMPLATE ${values.name} (${values.node} WITH DATATYPE=${datatype}, ENCODING=${encoding}, COMPRESSION=${compression})`
       );
-      message.success('模板创建成功');
+      message.success(t('模板创建成功'));
       setModalOpen(false);
       form.resetFields();
       fetchTemplates();
     } catch (error: any) {
-      message.error(`创建失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('创建失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const handleDelete = async (name: string) => {
     try {
       await nonQuery(`DROP SCHEMA TEMPLATE ${name}`);
-      message.success('模板删除成功');
+      message.success(t('模板删除成功'));
       fetchTemplates();
     } catch (error: any) {
-      message.error(`删除失败: ${error.response?.data?.message || error.message}`);
+      message.error(t('删除失败: {msg}', { msg: error.response?.data?.message || error.message }));
     }
   };
 
   const columns = [
-    { title: '模板名', dataIndex: 'name', key: 'name' },
+    { title: t('模板名'), dataIndex: 'name', key: 'name' },
     { title: 'Schema', dataIndex: 'schema', key: 'schema' },
-    { title: '编码', dataIndex: 'encoding', key: 'encoding' },
-    { title: '压缩', dataIndex: 'compression', key: 'compression' },
+    { title: t('编码'), dataIndex: 'encoding', key: 'encoding' },
+    { title: t('压缩'), dataIndex: 'compression', key: 'compression' },
     {
-      title: '操作',
+      title: t('操作'),
       key: 'action',
       render: (_: any, record: TemplateInfo) => (
-        <Popconfirm title="确定删除该模板吗？" onConfirm={() => handleDelete(record.name)}>
+        <Popconfirm title={t('确定删除该模板吗？')} onConfirm={() => handleDelete(record.name)}>
           <Button type="link" danger icon={<DeleteOutlined />}>
-            删除
+            {t('删除')}
           </Button>
         </Popconfirm>
       ),
@@ -104,15 +106,15 @@ const TemplateManagement: React.FC = () => {
   return (
     <div>
       <Card
-        title="Schema 模板管理"
+        title={t('Schema 模板管理')}
         size="small"
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchTemplates}>
-              刷新
+              {t('刷新')}
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              创建模板
+              {t('创建模板')}
             </Button>
           </Space>
         }
@@ -128,19 +130,19 @@ const TemplateManagement: React.FC = () => {
       </Card>
 
       <Modal
-        title="创建 Schema 模板"
+        title={t('创建 Schema 模板')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="name" label="模板名" rules={[{ required: true, message: '请输入模板名' }]}>
+          <Form.Item name="name" label={t('模板名')} rules={[{ required: true, message: t('请输入模板名') }]}>
             <Input placeholder="template_1" />
           </Form.Item>
-          <Form.Item name="node" label="节点路径" rules={[{ required: true, message: '请输入节点路径' }]}>
+          <Form.Item name="node" label={t('节点路径')} rules={[{ required: true, message: t('请输入节点路径') }]}>
             <Input placeholder="root.sg.d1" />
           </Form.Item>
-          <Form.Item name="datatype" label="数据类型" rules={[{ required: true }]}>
+          <Form.Item name="datatype" label={t('数据类型')} rules={[{ required: true }]}>
             <Select defaultValue="INT64">
               <Select.Option value="INT64">INT64</Select.Option>
               <Select.Option value="INT32">INT32</Select.Option>
@@ -150,7 +152,7 @@ const TemplateManagement: React.FC = () => {
               <Select.Option value="BOOLEAN">BOOLEAN</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="encoding" label="编码" rules={[{ required: true }]}>
+          <Form.Item name="encoding" label={t('编码')} rules={[{ required: true }]}>
             <Select defaultValue="RLE">
               <Select.Option value="RLE">RLE</Select.Option>
               <Select.Option value="PLAIN">PLAIN</Select.Option>
@@ -158,7 +160,7 @@ const TemplateManagement: React.FC = () => {
               <Select.Option value="GORILLA_V1">GORILLA_V1</Select.Option>
             </Select>
           </Form.Item>
-          <Form.Item name="compression" label="压缩" rules={[{ required: true }]}>
+          <Form.Item name="compression" label={t('压缩')} rules={[{ required: true }]}>
             <Select defaultValue="LZ4">
               <Select.Option value="LZ4">LZ4</Select.Option>
               <Select.Option value="SNAPPY">SNAPPY</Select.Option>
@@ -168,7 +170,7 @@ const TemplateManagement: React.FC = () => {
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              创建
+              {t('创建')}
             </Button>
           </Form.Item>
         </Form>

@@ -20,7 +20,7 @@
  * tail. Verified on the live node: `/rest/v2/insertTablet` rejects a relative `device` with
  * `code 305 Path does not exist.`, so a tree device also has to carry its `root.` prefix.
  */
-const PATH_SHAPE = /^[A-Za-z一-龥][A-Za-z0-9_一-龥]*(?:\.[A-Za-z0-9_一-龥]+)*$/;
+const PATH_SHAPE = /^[A-Za-z一-龥][A-Za-z0-9_一-龥]*(?:\.[A-Za-z0-9_一-龥]+)*$/; // i18n-ignore
 
 export const normalizePath = (input: string): string | null => {
   const trimmed = input.trim().replace(/(?:\.\*\*|\.\*|\*\*)$/, '').replace(/\.$/, '');

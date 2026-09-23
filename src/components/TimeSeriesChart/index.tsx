@@ -16,6 +16,7 @@
 
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
+import { useI18n } from '../../i18n';
 
 interface ChartMarker {
   /** The timestamp the marker sits on; the component resolves it to a category index. */
@@ -33,6 +34,7 @@ interface TimeSeriesChartProps {
 }
 
 const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, subtitle, xAxisData, series, height = 400, markers }) => {
+  const { t } = useI18n();
   const marked = (markers || []).map((marker) => ({ index: xAxisData.indexOf(marker.x), y: marker.y })).filter(
     (point) => point.index >= 0
   );
@@ -51,7 +53,7 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, subtitle, xAxi
         return result;
       },
     },
-    legend: { data: [...series.map((s) => s.name), ...(marked.length ? ['异常点'] : [])], top: 30 },
+    legend: { data: [...series.map((s) => s.name), ...(marked.length ? [t('异常点')] : [])], top: 30 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: {
       type: 'category',
@@ -77,7 +79,7 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, subtitle, xAxi
       ...(marked.length
         ? [
             {
-              name: '异常点',
+              name: t('异常点'),
               type: 'scatter',
               data: marked.map((point) => [point.index, point.y]),
               symbolSize: 11,

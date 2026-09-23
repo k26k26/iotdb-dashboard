@@ -35,6 +35,8 @@ import {
 import { ExperimentOutlined } from '@ant-design/icons';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
 import { WINDOWS, readCluster, readQuality } from '../../services/analysis';
+import { tx, useI18n } from '../../i18n';
+import type { Text as I18nText } from '../../i18n';
 import { normalizePath } from '../../utils/path';
 import { formatTimestamp } from '../../utils/formatter';
 import {
@@ -51,11 +53,11 @@ import type { QualityReads } from '../../utils/analysis';
 
 const { Title, Paragraph, Text } = Typography;
 
-const LEVEL_META: Record<FindingLevel, { label: string; color: string }> = {
-  critical: { label: '严重', color: 'red' },
-  warn: { label: '注意', color: 'orange' },
-  info: { label: '提示', color: 'blue' },
-  pass: { label: '通过', color: 'green' },
+const LEVEL_META: Record<FindingLevel, { label: I18nText; color: string }> = {
+  critical: { label: tx('严重'), color: 'red' },
+  warn: { label: tx('注意'), color: 'orange' },
+  info: { label: tx('提示'), color: 'blue' },
+  pass: { label: tx('通过'), color: 'green' },
 };
 
 const cell = (key: string, value: unknown): string => {
@@ -65,11 +67,12 @@ const cell = (key: string, value: unknown): string => {
 };
 
 const EvidenceTable: React.FC<{ rows: Record<string, unknown>[] }> = ({ rows }) => {
-  if (!rows.length) return <Text type="secondary">这条语句这次没有返回行。</Text>;
+  const { t } = useI18n();
+  if (!rows.length) return <Text type="secondary">{t('这条语句这次没有返回行。')}</Text>;
   const columns = Object.keys(rows[0])
     .filter((key) => key !== 'key')
     .map((key) => ({
-      title: key,
+      title: t(key),
       dataIndex: key,
       key,
       render: (_: unknown, record: Record<string, unknown>) => cell(key, record[key]),
@@ -87,22 +90,23 @@ const EvidenceTable: React.FC<{ rows: Record<string, unknown>[] }> = ({ rows }) 
 };
 
 const FindingCard: React.FC<{ finding: Finding }> = ({ finding }) => {
+  const { t } = useI18n();
   const meta = LEVEL_META[finding.level];
   return (
     <Card
       size="small"
       title={
         <Space>
-          <Tag color={meta.color}>{meta.label}</Tag>
-          <span>{finding.title}</span>
+          <Tag color={meta.color}>{t(meta.label)}</Tag>
+          <span>{t(finding.title)}</span>
         </Space>
       }
     >
-      <Paragraph style={{ marginBottom: 8 }}>{finding.detail}</Paragraph>
+      <Paragraph style={{ marginBottom: 8 }}>{t(finding.detail)}</Paragraph>
       {finding.advice && (
         <Paragraph style={{ marginBottom: 8 }}>
-          <Text type="secondary">可以怎么做：</Text>
-          {finding.advice}
+          <Text type="secondary">{t('可以怎么做：')}</Text>
+          {t(finding.advice)}
         </Paragraph>
       )}
       <Collapse
@@ -110,7 +114,9 @@ const FindingCard: React.FC<{ finding: Finding }> = ({ finding }) => {
         items={[
           {
             key: 'evidence',
-            label: `来源：${finding.evidence.sql.split('\n')[0].slice(0, 60)}${finding.evidence.sql.length > 60 ? '…' : ''}`,
+            label: t('来源：{sql}', {
+              sql: `${finding.evidence.sql.split('\n')[0].slice(0, 60)}${finding.evidence.sql.length > 60 ? '…' : ''}`,
+            }),
             children: (
               <>
                 <Paragraph copyable={{ text: finding.evidence.sql }} style={{ marginBottom: 8 }}>
@@ -118,7 +124,7 @@ const FindingCard: React.FC<{ finding: Finding }> = ({ finding }) => {
                 </Paragraph>
                 {finding.evidence.note && (
                   <Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                    {finding.evidence.note}
+                    {t(finding.evidence.note)}
                   </Paragraph>
                 )}
                 <EvidenceTable rows={finding.evidence.rows} />
@@ -133,6 +139,7 @@ const FindingCard: React.FC<{ finding: Finding }> = ({ finding }) => {
 
 /** The chart only ever draws one device, so say which one and stop pretending it is the whole path. */
 const ChartPanel: React.FC<{ read: Readout; path: string }> = ({ read, path }) => {
+  const { t } = useI18n();
   const chart = useMemo(() => {
     const series = seriesFromRowset(read.rows);
     const stamps = [...new Set(series.flatMap((item) => item.points.map((point) => point.timestamp)))].sort(
@@ -157,13 +164,20 @@ const ChartPanel: React.FC<{ read: Readout; path: string }> = ({ read, path }) =
   }, [read, path]);
 
   if (!chart.stamps.length) {
-    return <Alert type="info" showIcon title={`${read.label} 没有取到数值点`} description="这台机器上这条设备序列为空，或者值不是数值（TEXT/BOOLEAN 不参与统计）。" />;
+    return (
+      <Alert
+        type="info"
+        showIcon
+        title={t('{label} 没有取到数值点', { label: t(read.label) })}
+        description={t('这台机器上这条设备序列为空，或者值不是数值（TEXT/BOOLEAN 不参与统计）。')}
+      />
+    );
   }
 
   return (
     <TimeSeriesChart
-      title={read.label}
-      subtitle={`曲线只画这一台设备；结论覆盖的是 ${path} 整个路径`}
+      title={t(read.label)}
+      subtitle={t('曲线只画这一台设备；结论覆盖的是 {path} 整个路径', { path })}
       xAxisData={chart.stamps}
       series={chart.series}
       markers={chart.anomalies.map((anomaly) => ({ x: anomaly.timestamp, y: anomaly.value }))}
@@ -177,21 +191,20 @@ const AIAnalysis: React.FC = () => {
   const [windowKey, setWindowKey] = useState('7d');
   const [deviceLimit, setDeviceLimit] = useState(5);
   const [pointLimit, setPointLimit] = useState(1000);
-  const [pathError, setPathError] = useState<string | null>(null);
+  const [pathError, setPathError] = useState<I18nText | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [quality, setQuality] = useState<QualityReads | null>(null);
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const handleRun = useCallback(async () => {
     const normalized = normalizePath(path);
     if (!normalized) {
-      setPathError(
-        '路径只能是点号分隔的名字：不能带引号、反斜杠、空格或通配符（通配符本页自己加）。'
-      );
-      message.warning('路径格式不对，没有发语句');
+      setPathError(tx('路径只能是点号分隔的名字：不能带引号、反斜杠、空格或通配符（通配符本页自己加）。'));
+      message.warning(t('路径格式不对，没有发语句'));
       return;
     }
     setPathError(null);
@@ -215,7 +228,7 @@ const AIAnalysis: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [path, windowKey, deviceLimit, pointLimit, message]);
+  }, [path, windowKey, deviceLimit, pointLimit, message, t]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Finding[]>();
@@ -237,27 +250,20 @@ const AIAnalysis: React.FC = () => {
 
   return (
     <div>
-      <Title level={3}>AI 分析</Title>
+      <Title level={3}>{t('AI 分析')}</Title>
 
       <Alert
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        title="这一页不调用任何模型：每条结论都是服务端真实返回算出来的"
-        description={
-          <>
-            这是个纯静态前端：没有服务端中转，也没有密钥，所以"智能"这一半只能是本地规则加鲁棒统计
-            （中位数 / MAD / 间隔漂移），而不是某个大模型的看法。每条结论都能展开看到它依据的语句和原始行，
-            你可以把语句原样粘到查询页复现。读不到的语句会作为「没读到」列出来，不会渲染成"暂无数据"。
-            样本太少时检测器会明说"这一项不下结论"——它不会为了看起来有内容而报异常。
-          </>
-        }
+        title={t('这一页不调用任何模型：每条结论都是服务端真实返回算出来的')}
+        description={t('这是个纯静态前端：没有服务端中转，也没有密钥，所以"智能"这一半只能是本地规则加鲁棒统计 （中位数 / MAD / 间隔漂移），而不是某个大模型的看法。每条结论都能展开看到它依据的语句和原始行， 你可以把语句原样粘到查询页复现。读不到的语句会作为「没读到」列出来，不会渲染成"暂无数据"。 样本太少时检测器会明说"这一项不下结论"——它不会为了看起来有内容而报异常。')}
       />
 
-      <Card title="体检范围" size="small" style={{ marginBottom: 16 }}>
+      <Card title={t('体检范围')} size="small" style={{ marginBottom: 16 }}>
         <Space wrap align="start">
           <div>
-            <div style={{ marginBottom: 4 }}>路径</div>
+            <div style={{ marginBottom: 4 }}>{t('路径')}</div>
             <Input
               value={path}
               onChange={(event) => setPath(event.target.value)}
@@ -266,20 +272,20 @@ const AIAnalysis: React.FC = () => {
             />
           </div>
           <div>
-            <div style={{ marginBottom: 4 }}>时间窗</div>
+            <div style={{ marginBottom: 4 }}>{t('时间窗')}</div>
             <Select
               value={windowKey}
               onChange={setWindowKey}
               style={{ width: 140 }}
-              options={Object.entries(WINDOWS).map(([key, item]) => ({ value: key, label: item.label }))}
+              options={Object.entries(WINDOWS).map(([key, item]) => ({ value: key, label: t(item.label) }))}
             />
           </div>
           <div>
-            <div style={{ marginBottom: 4 }}>体检设备数</div>
+            <div style={{ marginBottom: 4 }}>{t('体检设备数')}</div>
             <InputNumber min={1} max={50} value={deviceLimit} onChange={(value) => setDeviceLimit(value ?? 5)} />
           </div>
           <div>
-            <div style={{ marginBottom: 4 }}>每台点数上限</div>
+            <div style={{ marginBottom: 4 }}>{t('每台点数上限')}</div>
             <InputNumber
               min={1}
               max={5000}
@@ -290,16 +296,24 @@ const AIAnalysis: React.FC = () => {
           <div>
             <div style={{ marginBottom: 4 }}>&nbsp;</div>
             <Button type="primary" icon={<ExperimentOutlined />} loading={loading} onClick={handleRun}>
-              开始体检
+              {t('开始体检')}
             </Button>
           </div>
         </Space>
         {pathError && (
-          <Alert type="error" showIcon style={{ marginTop: 12 }} title="路径没有发出去" description={pathError} />
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginTop: 12 }}
+            title={t('路径没有发出去')}
+            description={t(pathError)}
+          />
         )}
         <div style={{ marginTop: 12, color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
-          一次体检发十来条语句（集群 6 条 + 设备清单/最近值/分桶 3 条 + 每台设备 1 条）。
-          结论是点出来的，不是常驻刷新的{finishedAt ? `：最近一次 ${formatTimestamp(finishedAt)}` : ''}。
+          {t('一次体检发十来条语句（集群 6 条 + 设备清单/最近值/分桶 3 条 + 每台设备 1 条）。')}{' '}
+          {finishedAt
+            ? t('结论是点出来的，不是常驻刷新的：最近一次 {time}。', { time: formatTimestamp(finishedAt) })
+            : t('结论是点出来的，不是常驻刷新的。')}
         </div>
       </Card>
 
@@ -307,32 +321,35 @@ const AIAnalysis: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="结论" value={findings.length} />
+              <Statistic title={t('结论')} value={findings.length} />
             </Card>
           </Col>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="严重" value={counts.critical} styles={{ content: { color: counts.critical ? '#cf1322' : undefined } }} />
+              <Statistic title={t('严重')} value={counts.critical} styles={{ content: { color: counts.critical ? '#cf1322' : undefined } }} />
             </Card>
           </Col>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="注意" value={counts.warn} styles={{ content: { color: counts.warn ? '#d46b08' : undefined } }} />
+              <Statistic title={t('注意')} value={counts.warn} styles={{ content: { color: counts.warn ? '#d46b08' : undefined } }} />
             </Card>
           </Col>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="提示" value={counts.info} />
+              <Statistic title={t('提示')} value={counts.info} />
             </Card>
           </Col>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="通过" value={counts.pass} styles={{ content: { color: '#237804' } }} />
+              <Statistic title={t('通过')} value={counts.pass} styles={{ content: { color: '#237804' } }} />
             </Card>
           </Col>
           <Col xs={12} sm={8} lg={4}>
             <Card size="small">
-              <Statistic title="采集耗时" value={elapsed === null ? '-' : `${(elapsed / 1000).toFixed(2)} 秒`} />
+              <Statistic
+                title={t('采集耗时')}
+                value={elapsed === null ? '-' : t('{n} 秒', { n: (elapsed / 1000).toFixed(2) })}
+              />
             </Card>
           </Col>
         </Row>
@@ -343,14 +360,14 @@ const AIAnalysis: React.FC = () => {
           <Alert
             type="info"
             showIcon
-            title="还没跑过体检"
-            description="填好路径点「开始体检」。这一页不会自己替你判断该看哪台设备——范围得由你定。"
+            title={t('还没跑过体检')}
+            description={t('填好路径点「开始体检」。这一页不会自己替你判断该看哪台设备——范围得由你定。')}
           />
         </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {grouped.map(([group, items]) => (
-            <Card key={group} title={`${group}（${items.length}）`} size="small">
+            <Card key={group} title={`${t(group)} (${items.length})`} size="small">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {items.map((finding) => (
                   <FindingCard key={finding.key} finding={finding} />
@@ -360,7 +377,7 @@ const AIAnalysis: React.FC = () => {
           ))}
 
           {quality?.points.length ? (
-            <Card title="抽到的原始点（只画第一台设备）" size="small">
+            <Card title={t('抽到的原始点（只画第一台设备）')} size="small">
               <ChartPanel read={quality.points[0]} path={quality.path} />
             </Card>
           ) : null}

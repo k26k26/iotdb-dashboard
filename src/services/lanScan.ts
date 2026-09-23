@@ -21,6 +21,8 @@
  * with an opaque response for *any* reply, including a 404 from a non-IoTDB web server.
  */
 
+import { t } from '../i18n';
+
 export const SCAN_TIMEOUT_MS = 1500;
 export const SCAN_CONCURRENCY = 24;
 export const SCAN_HOST_COUNT = 255;
@@ -61,16 +63,16 @@ const OCTET = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 export const prefixError = (prefix: string): string | null => {
   const parts = prefix.trim().split('.');
   if (parts.length !== 3 || parts.some((part) => !OCTET.test(part))) {
-    return '请填写网段的前三段，例如 192.168.77';
+    return t('请填写网段的前三段，例如 192.168.77');
   }
   const [a, b] = parts.map(Number);
   const isPrivate = a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
-  return isPrivate ? null : '只能扫描内网网段（10.*、172.16-31.*、192.168.*）';
+  return isPrivate ? null : t('只能扫描内网网段（10.*、172.16-31.*、192.168.*）');
 };
 
 export const portError = (port: number | null): string | null => {
   if (!Number.isInteger(port) || (port as number) < 1 || (port as number) > 65535) {
-    return '端口需要是 1-65535 的整数';
+    return t('端口需要是 1-65535 的整数');
   }
   return null;
 };

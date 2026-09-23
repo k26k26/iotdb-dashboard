@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, Table, Button, message, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { query } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 interface FunctionInfo {
   functionName: string;
@@ -27,6 +28,7 @@ interface FunctionInfo {
 const FunctionManagement: React.FC = () => {
   const [functions, setFunctions] = useState<FunctionInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const { t } = useI18n();
 
   const fetchFunctions = async () => {
     setLoading(true);
@@ -35,7 +37,7 @@ const FunctionManagement: React.FC = () => {
       const values = Array.isArray(result?.values) ? result.values : [];
       setFunctions(values.map((row) => ({ functionName: row[0], type: row[1] || '' })));
     } catch (error) {
-      message.error('获取函数列表失败');
+      message.error(t('获取函数列表失败'));
     } finally {
       setLoading(false);
     }
@@ -46,18 +48,18 @@ const FunctionManagement: React.FC = () => {
   }, []);
 
   const columns = [
-    { title: '函数名', dataIndex: 'functionName', key: 'functionName' },
-    { title: '类型', dataIndex: 'type', key: 'type' },
+    { title: t('函数名'), dataIndex: 'functionName', key: 'functionName' },
+    { title: t('类型'), dataIndex: 'type', key: 'type' },
   ];
 
   return (
     <div>
       <Card
-        title="函数管理"
+        title={t('函数管理')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchFunctions}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >

@@ -21,11 +21,12 @@ import { assertRestOk, query, queryRows } from '../../services/rest';
 import { shapeResult } from '../../utils/queryResult';
 import type { Field } from '../../utils/queryResult';
 import { toCsv } from '../../utils/csv';
+import { t, useI18n } from '../../i18n';
 
 const AUDIT_NS = 'root.__audit';
 const LIMIT = 200;
 
-const describe = (err: any): string => err.response?.data?.message || err.message || '请求失败';
+const describe = (err: any): string => err.response?.data?.message || err.message || t('请求失败');
 
 /**
  * A tree SELECT names every column with the full timeseries path, so under the audit namespace the
@@ -55,6 +56,7 @@ const AuditLogs: React.FC = () => {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -78,11 +80,11 @@ const AuditLogs: React.FC = () => {
       setNamespace('unknown');
       setRows([]);
       setError(describe(err));
-      message.error(`获取审计日志失败: ${describe(err)}`);
+      message.error(t('获取审计日志失败: {msg}', { msg: describe(err) }));
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   useEffect(() => {
     fetchLogs();
@@ -109,7 +111,7 @@ const AuditLogs: React.FC = () => {
     link.download = `audit_logs_${Date.now()}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
-    message.success(`已导出 ${visible.length} 行`);
+    message.success(t('已导出 {n} 行', { n: visible.length }));
   };
 
   const columns = fields.map((field, i) => ({
@@ -124,29 +126,29 @@ const AuditLogs: React.FC = () => {
   return (
     <div>
       <Card
-        title="审计日志"
+        title={t('审计日志')}
         size="small"
         extra={
           <Space>
             <Input
-              placeholder="过滤已取回的结果"
+              placeholder={t('过滤已取回的结果')}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               style={{ width: 200 }}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={fetchLogs}>
-              刷新
+              {t('刷新')}
             </Button>
             <Button icon={<DownloadOutlined />} disabled={!visible.length} onClick={exportAudit}>
-              导出
+              {t('导出')}
             </Button>
           </Space>
         }
       >
         <Spin spinning={loading}>
           {error ? (
-            <Alert type="error" showIcon title="审计状态探测失败" description={error} />
+            <Alert type="error" showIcon title={t('审计状态探测失败')} description={error} />
           ) : (
             <Table
               dataSource={visible}
@@ -162,15 +164,15 @@ const AuditLogs: React.FC = () => {
                     showIcon
                     title={
                       namespace === 'absent'
-                        ? `服务端还没有 ${AUDIT_NS} 这个库`
+                        ? t('服务端还没有 {ns} 这个库', { ns: AUDIT_NS })
                         : keyword
-                          ? `当前过滤条件下没有匹配行（共 ${rows.length} 行）`
-                          : `审计命名空间存在，但 ${LIMIT} 条以内没有记录`
+                          ? t('当前过滤条件下没有匹配行（共 {n} 行）', { n: rows.length })
+                          : t('审计命名空间存在，但 {n} 条以内没有记录', { n: LIMIT })
                     }
                     description={
                       namespace === 'absent'
-                        ? `SHOW DEVICES ${AUDIT_NS}.** 查询成功、返回 0 行。本版本没有审计类语句（AUDIT 在两种解析器里都只是普通关键字），enable_audit_log 默认关闭；而且即使打开，2.0.11 的 DNAuditLogger.log()/logFromCN() 与 CNAuditLogger.log() 都是空方法体，服务端不会写入任何审计行。要在这一页读到真实审计，得等服务端把那三个方法实现出来。`
-                        : `SELECT * FROM ${AUDIT_NS}.** ORDER BY time DESC 查询成功但没有行；过滤只作用在已经取回的结果上，不会再拼进语句里发给服务端。`
+                        ? t('SHOW DEVICES {ns}.** 查询成功、返回 0 行。本版本没有审计类语句（AUDIT 在两种解析器里都只是普通关键字），enable_audit_log 默认关闭；而且即使打开，2.0.11 的 DNAuditLogger.log()/logFromCN() 与 CNAuditLogger.log() 都是空方法体，服务端不会写入任何审计行。要在这一页读到真实审计，得等服务端把那三个方法实现出来。', { ns: AUDIT_NS })
+                        : t('SELECT * FROM {ns}.** ORDER BY time DESC 查询成功但没有行；过滤只作用在已经取回的结果上，不会再拼进语句里发给服务端。', { ns: AUDIT_NS })
                     }
                   />
                 ),

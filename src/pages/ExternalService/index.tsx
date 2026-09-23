@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Table, Button, Spin, Alert, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { queryRows } from '../../services/rest';
+import { useI18n } from '../../i18n';
 import type { PipePluginInfo } from '../../types/api';
 
 const shown = (value: string | null) => value || '-';
@@ -37,6 +38,7 @@ const fetchPlugins = async (): Promise<PipePluginInfo[]> => {
 };
 
 const ExternalServices: React.FC = () => {
+  const { t } = useI18n();
   const [plugins, setPlugins] = useState<PipePluginInfo[]>([]);
   const [loading, setLoading] = useState(false);
   // A cluster with no custom jars legitimately lists only builtins, so failures need their own state.
@@ -48,34 +50,36 @@ const ExternalServices: React.FC = () => {
       setPlugins(await fetchPlugins());
       setError('');
     } catch (err: any) {
-      setError(`获取外部服务列表失败: ${err.response?.data?.message || err.message}`);
+      setError(t('获取外部服务列表失败: {msg}', { msg: err.response?.data?.message || err.message }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  const intro = t('外部服务即管道连接器插件，供数据管道的 source / processor / sink 引用；可用 {stmt} 注册自定义 JAR。').split('{stmt}');
+
   const columns = [
-    { title: '插件名称', dataIndex: 'pluginName', key: 'pluginName' },
+    { title: t('插件名称'), dataIndex: 'pluginName', key: 'pluginName' },
     {
-      title: '类别',
+      title: t('类别'),
       dataIndex: 'pluginType',
       key: 'pluginType',
       render: (type: string) => <Tag>{type}</Tag>,
     },
-    { title: '实现类', dataIndex: 'className', key: 'className', ellipsis: true },
+    { title: t('实现类'), dataIndex: 'className', key: 'className', ellipsis: true },
     {
-      title: 'JAR 包',
+      title: t('JAR 包'),
       dataIndex: 'pluginJar',
       key: 'pluginJar',
       ellipsis: true,
       render: shown,
     },
     {
-      title: '加载异常',
+      title: t('加载异常'),
       dataIndex: 'exceptionMessage',
       key: 'exceptionMessage',
       ellipsis: true,
@@ -86,17 +90,18 @@ const ExternalServices: React.FC = () => {
   return (
     <div>
       <Card
-        title="外部服务管理"
+        title={t('外部服务管理')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={refresh}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Typography.Paragraph type="secondary">
-          外部服务即管道连接器插件，供数据管道的 source / processor / sink 引用；可用
-          <code>CREATE PIPE PLUGIN</code> 注册自定义 JAR。
+          {intro[0]}
+          <code>CREATE PIPE PLUGIN</code>
+          {intro[1]}
         </Typography.Paragraph>
         <Spin spinning={loading}>
           {error ? (
@@ -105,8 +110,8 @@ const ExternalServices: React.FC = () => {
             <Alert
               type="info"
               showIcon
-              title="暂无外部服务"
-              description="查询成功，当前集群没有可用的连接器插件。"
+              title={t('暂无外部服务')}
+              description={t('查询成功，当前集群没有可用的连接器插件。')}
             />
           ) : (
             <Table

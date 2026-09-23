@@ -20,7 +20,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "license": "node scripts/license-headers.mjs",
-    "license:check": "node scripts/license-headers.mjs --check"
+    "license:check": "node scripts/license-headers.mjs --check",
+    "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",

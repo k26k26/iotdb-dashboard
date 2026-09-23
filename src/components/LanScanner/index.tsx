@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input, InputNumber, Progress, Table, Typography } from 'antd';
 import { RadarChartOutlined } from '@ant-design/icons';
+import { useI18n } from '../../i18n';
 import {
   SCAN_HOST_COUNT,
   portError,
@@ -42,6 +43,7 @@ interface Props {
 }
 
 const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
+  const { t } = useI18n();
   const [prefix, setPrefix] = useState(() => suggestPrefix(currentHost));
   const [port, setPort] = useState(currentPort);
   const [running, setRunning] = useState(false);
@@ -89,8 +91,8 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
       <Alert
         type="warning"
         showIcon
-        title="扫描不可用"
-        description="当前页面通过 https 提供，浏览器不允许它去连 http 的节点。用 http 打开本应用后再扫描。"
+        title={t('扫描不可用')}
+        description={t('当前页面通过 https 提供，浏览器不允许它去连 http 的节点。用 http 打开本应用后再扫描。')}
       />
     );
   }
@@ -100,7 +102,7 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 200px' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            网段前三段
+            {t('网段前三段')}
           </Text>
           <Input
             addonAfter=".1-255"
@@ -112,7 +114,7 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
         </div>
         <div style={{ width: 120 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            端口
+            {t('端口')}
           </Text>
           <InputNumber
             min={1}
@@ -126,11 +128,11 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
         <div style={{ paddingTop: 20 }}>
           {running ? (
             <Button danger onClick={() => abortRef.current?.abort()}>
-              停止
+              {t('停止')}
             </Button>
           ) : (
             <Button icon={<RadarChartOutlined />} type="primary" onClick={start}>
-              扫描局域网
+              {t('扫描局域网')}
             </Button>
           )}
         </div>
@@ -154,8 +156,8 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
           type="warning"
           showIcon
           style={{ marginTop: 12 }}
-          title={`扫完 ${SCAN_HOST_COUNT} 个地址，没有任何一个在 ${port} 上应答`}
-          description="说明这个网段里没有开着该端口的 HTTP 服务。要么 REST 没开（见上面的三步排查），要么端口不是 18080，要么机器不在这个网段。"
+          title={t('扫完 {total} 个地址，没有任何一个在 {port} 上应答', { total: SCAN_HOST_COUNT, port })}
+          description={t('说明这个网段里没有开着该端口的 HTTP 服务。要么 REST 没开（见上面的三步排查），要么端口不是 18080，要么机器不在这个网段。')}
         />
       )}
 
@@ -167,15 +169,15 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
           rowKey="host"
           dataSource={hits}
           columns={[
-            { title: '应答地址', dataIndex: 'host' },
-            { title: '响应 (ms)', dataIndex: 'ms', width: 100 },
+            { title: t('应答地址'), dataIndex: 'host' },
+            { title: t('响应 (ms)'), dataIndex: 'ms', width: 100 },
             {
               title: '',
               width: 120,
               render: (_, hit) =>
                 onPick && (
                   <Button size="small" type="link" onClick={() => onPick(hit.host, port)}>
-                    用这个地址
+                    {t('用这个地址')}
                   </Button>
                 ),
             },
@@ -184,8 +186,7 @@ const LanScanner: React.FC<Props> = ({ currentHost, currentPort, onPick }) => {
       )}
 
       <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-        浏览器只能靠 HTTP 应答判断端口通不通：列表里的地址确实在 {port} 端口上回应了请求，但不保证就是
-        IoTDB，也不保证 REST 已开启。扫描只会对本机内网网段发起请求。
+        {t('浏览器只能靠 HTTP 应答判断端口通不通：列表里的地址确实在 {port} 端口上回应了请求，但不保证就是 IoTDB，也不保证 REST 已开启。扫描只会对本机内网网段发起请求。', { port })}
       </Text>
     </div>
   );

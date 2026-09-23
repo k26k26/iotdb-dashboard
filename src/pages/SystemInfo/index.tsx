@@ -18,8 +18,10 @@ import React, { useEffect, useState } from 'react';
 import { Card, Button, message, Spin, Descriptions } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { query } from '../../services/rest';
+import { useI18n } from '../../i18n';
 
 const SystemInfo: React.FC = () => {
+  const { t } = useI18n();
   const [version, setVersion] = useState<string>('');
   const [user, setUser] = useState<string>('');
   const [databases, setDatabases] = useState<string[]>([]);
@@ -42,7 +44,7 @@ const SystemInfo: React.FC = () => {
       setUser(userValues[0]?.[0] || '');
       setDatabases(dbValues.map((row) => row[0]));
     } catch (error) {
-      message.error('获取系统信息失败');
+      message.error(t('获取系统信息失败'));
     } finally {
       setLoading(false);
     }
@@ -55,20 +57,20 @@ const SystemInfo: React.FC = () => {
   return (
     <div>
       <Card
-        title="版本与系统信息"
+        title={t('版本与系统信息')}
         size="small"
         extra={
           <Button icon={<ReloadOutlined />} onClick={fetchInfo}>
-            刷新
+            {t('刷新')}
           </Button>
         }
       >
         <Spin spinning={loading}>
           <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="IoTDB 版本">{version || '-'}</Descriptions.Item>
-            <Descriptions.Item label="当前用户">{user || '-'}</Descriptions.Item>
-            <Descriptions.Item label="数据库数量">{databases.length}</Descriptions.Item>
-            <Descriptions.Item label="数据库列表">
+            <Descriptions.Item label={t('IoTDB 版本')}>{version || '-'}</Descriptions.Item>
+            <Descriptions.Item label={t('当前用户')}>{user || '-'}</Descriptions.Item>
+            <Descriptions.Item label={t('数据库数量')}>{databases.length}</Descriptions.Item>
+            <Descriptions.Item label={t('数据库列表')}>
               {databases.length > 0 ? databases.join(', ') : '-'}
             </Descriptions.Item>
           </Descriptions>

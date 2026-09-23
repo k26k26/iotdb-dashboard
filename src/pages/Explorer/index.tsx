@@ -45,6 +45,8 @@ import { normalizeDevicePath } from '../../utils/path';
 import { humanSpan } from '../../utils/analysis';
 import { formatTimestamp } from '../../utils/formatter';
 import { shapeResult } from '../../utils/queryResult';
+import { tx, useI18n } from '../../i18n';
+import type { Text as I18nText } from '../../i18n';
 import type { ShapedResult } from '../../utils/queryResult';
 import type { TreeDataNode } from 'antd';
 
@@ -56,11 +58,11 @@ const PREVIEW_LIMIT = 20;
 
 type NodeKind = 'DATABASE' | 'DEVICE' | 'TIMESERIES' | 'INTERNAL';
 
-const KIND_META: Record<NodeKind, { label: string; color: string; icon: React.ReactNode }> = {
-  DATABASE: { label: '数据库', color: 'blue', icon: <DatabaseOutlined /> },
-  DEVICE: { label: '设备', color: 'cyan', icon: <HddOutlined /> },
-  TIMESERIES: { label: '时间序列', color: 'green', icon: <FieldTimeOutlined /> },
-  INTERNAL: { label: '内部节点', color: 'default', icon: <ApartmentOutlined /> },
+const KIND_META: Record<NodeKind, { label: I18nText; color: string; icon: React.ReactNode }> = {
+  DATABASE: { label: tx('数据库'), color: 'blue', icon: <DatabaseOutlined /> },
+  DEVICE: { label: tx('设备'), color: 'cyan', icon: <HddOutlined /> },
+  TIMESERIES: { label: tx('时间序列'), color: 'green', icon: <FieldTimeOutlined /> },
+  INTERNAL: { label: tx('内部节点'), color: 'default', icon: <ApartmentOutlined /> },
 };
 
 interface TreeNode extends TreeDataNode {
@@ -189,6 +191,7 @@ const Explorer: React.FC = () => {
   const [hits, setHits] = useState<SearchHit | null>(null);
   const loaded = useRef<Set<string>>(new Set());
   const { message } = AntdApp.useApp();
+  const { t } = useI18n();
 
   const loadChildren = async (parent: string): Promise<ChildRef[]> => toChildRefs(
     await queryRows(`SHOW CHILD PATHS ${sqlPath(parent)}`)
@@ -305,7 +308,7 @@ const Explorer: React.FC = () => {
       try {
         await reveal(path);
       } catch (error: any) {
-        message.warning(`展开路径失败: ${error.message}`);
+        message.warning(t('展开路径失败: {msg}', { msg: error.message }));
       }
     }
     fetchInfo(path);
@@ -328,7 +331,7 @@ const Explorer: React.FC = () => {
         },
       ]);
     } catch (error: any) {
-      message.error(`加载路径失败: ${error.message}`);
+      message.error(t('加载路径失败: {msg}', { msg: error.message }));
     } finally {
       setTreeLoading(false);
     }
@@ -347,7 +350,7 @@ const Explorer: React.FC = () => {
       setTreeData((prev) => attachChildren(prev, key, toTreeNodes(children)));
     } catch (error: any) {
       loaded.current.delete(key);
-      message.error(`加载子节点失败: ${error.message}`);
+      message.error(t('加载子节点失败: {msg}', { msg: error.message }));
     }
   };
 
@@ -359,16 +362,16 @@ const Explorer: React.FC = () => {
     }
     const path = normalizeDevicePath(raw);
     if (!path) {
-      message.warning('请输入 root. 开头的路径（末尾的 .* / .** 会被当作整棵子树）');
+      message.warning(t('请输入 root. 开头的路径（末尾的 .* / .** 会被当作整棵子树）'));
       return;
     }
     setTreeLoading(true);
     try {
       const rows = await queryRows(`SHOW TIMESERIES ${sqlPath(path)}.** LIMIT ${SERIES_LIMIT + 1}`);
       setHits({ path, rows, truncated: rows.length > SERIES_LIMIT });
-      if (!rows.length) message.info('没有匹配的时间序列');
+      if (!rows.length) message.info(t('没有匹配的时间序列'));
     } catch (error: any) {
-      message.error(`搜索失败: ${error.message}`);
+      message.error(t('搜索失败: {msg}', { msg: error.message }));
     } finally {
       setTreeLoading(false);
     }
@@ -383,7 +386,7 @@ const Explorer: React.FC = () => {
       scroll={{ x: 'max-content' }}
       columns={[
         {
-          title: '时间序列',
+          title: t('时间序列'),
           dataIndex: 'Timeseries',
           key: 'Timeseries',
           // Measurement alone is ambiguous as soon as several devices are in scope, so the label
@@ -399,11 +402,11 @@ const Explorer: React.FC = () => {
             </Button>
           ),
         },
-        { title: '数据类型', dataIndex: 'DataType', key: 'DataType' },
-        { title: '编码', dataIndex: 'Encoding', key: 'Encoding' },
-        { title: '压缩', dataIndex: 'Compression', key: 'Compression' },
+        { title: t('数据类型'), dataIndex: 'DataType', key: 'DataType' },
+        { title: t('编码'), dataIndex: 'Encoding', key: 'Encoding' },
+        { title: t('压缩'), dataIndex: 'Compression', key: 'Compression' },
         {
-          title: '标签',
+          title: t('标签'),
           dataIndex: 'Tags',
           key: 'Tags',
           render: (value: any) => (
@@ -418,41 +421,41 @@ const Explorer: React.FC = () => {
 
   const baseItems = (node: NodeInfo) => {
     const items: { label: string; children: React.ReactNode }[] = [
-      { label: '节点类型', children: <Tag color={KIND_META[node.kind].color}>{KIND_META[node.kind].label}</Tag> },
-      { label: '所属数据库', children: node.database || '-' },
-      { label: '子节点', children: node.children.length },
+      { label: t('节点类型'), children: <Tag color={KIND_META[node.kind].color}>{t(KIND_META[node.kind].label)}</Tag> },
+      { label: t('所属数据库'), children: node.database || '-' },
+      { label: t('子节点'), children: node.children.length },
     ];
     if (node.kind === 'TIMESERIES') {
       items.push(
-        { label: '数据类型', children: node.own?.DataType },
-        { label: '编码', children: node.own?.Encoding },
-        { label: '压缩', children: node.own?.Compression },
-        { label: '别名', children: node.own?.Alias || '-' },
-        { label: '视图类型', children: node.own?.ViewType || '-' },
-        { label: '死区', children: `${node.own?.Deadband || '-'} ${node.own?.DeadbandParameters || ''}`.trim() },
-        { label: '标签', children: jsonPairs(node.own?.Tags) },
-        { label: '属性', children: jsonPairs(node.own?.Attributes) }
+        { label: t('数据类型'), children: node.own?.DataType },
+        { label: t('编码'), children: node.own?.Encoding },
+        { label: t('压缩'), children: node.own?.Compression },
+        { label: t('别名'), children: node.own?.Alias || '-' },
+        { label: t('视图类型'), children: node.own?.ViewType || '-' },
+        { label: t('死区'), children: `${node.own?.Deadband || '-'} ${node.own?.DeadbandParameters || ''}`.trim() },
+        { label: t('标签'), children: jsonPairs(node.own?.Tags) },
+        { label: t('属性'), children: jsonPairs(node.own?.Attributes) }
       );
     }
     if (node.kind === 'DEVICE') {
       items.push(
-        { label: '时间序列数', children: node.seriesCount ?? '-' },
-        { label: '对齐存储', children: node.device?.IsAligned ?? '-' },
-        { label: '模板', children: node.device?.Template || '-' },
+        { label: t('时间序列数'), children: node.seriesCount ?? '-' },
+        { label: t('对齐存储'), children: node.device?.IsAligned ?? '-' },
+        { label: t('模板'), children: node.device?.Template || '-' },
         // TTL comes back as the literal string INF when no TTL is set, so it cannot be read as a number.
         { label: 'TTL', children: node.device?.['TTL(ms)'] ?? '-' }
       );
     }
     if (node.kind === 'DATABASE' || node.kind === 'INTERNAL') {
       items.push(
-        { label: '时间序列数', children: node.seriesCount ?? '-' },
-        { label: '设备数', children: node.deviceCount ?? '-' }
+        { label: t('时间序列数'), children: node.seriesCount ?? '-' },
+        { label: t('设备数'), children: node.deviceCount ?? '-' }
       );
       if (node.kind === 'DATABASE') {
         items.push(
-          { label: 'Schema 副本因子', children: node.dbAttr?.SchemaReplicationFactor ?? '-' },
-          { label: 'Data 副本因子', children: node.dbAttr?.DataReplicationFactor ?? '-' },
-          { label: '时间分区间隔', children: humanSpan(Number(node.dbAttr?.TimePartitionInterval) || 0) }
+          { label: t('Schema 副本因子'), children: node.dbAttr?.SchemaReplicationFactor ?? '-' },
+          { label: t('Data 副本因子'), children: node.dbAttr?.DataReplicationFactor ?? '-' },
+          { label: t('时间分区间隔'), children: humanSpan(Number(node.dbAttr?.TimePartitionInterval) || 0) }
         );
       }
     }
@@ -463,16 +466,16 @@ const Explorer: React.FC = () => {
     <Row gutter={16}>
       <Col xs={24} lg={8}>
         <Card
-          title="路径树"
+          title={t('路径树')}
           size="small"
           extra={
             <Button icon={<ReloadOutlined />} size="small" onClick={refreshTree}>
-              刷新
+              {t('刷新')}
             </Button>
           }
         >
           <Search
-            placeholder="搜索路径，如 root.sg 或 root.sg.**"
+            placeholder={t('搜索路径，如 root.sg 或 root.sg.**')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onSearch={onSearch}
@@ -501,17 +504,17 @@ const Explorer: React.FC = () => {
       <Col xs={24} lg={16}>
         {hits && (
           <Card
-            title={`搜索结果：${hits.path}.** (${hits.rows.length})`}
+            title={t('搜索结果：{path}.** ({n})', { path: hits.path, n: hits.rows.length })}
             size="small"
             style={{ marginBottom: 16 }}
-            extra={<Button size="small" onClick={() => setHits(null)}>关闭</Button>}
+            extra={<Button size="small" onClick={() => setHits(null)}>{t('关闭')}</Button>}
           >
             {hits.truncated && (
               <Alert
                 type="info"
                 showIcon
                 style={{ marginBottom: 8 }}
-                title={`命中超过 ${SERIES_LIMIT} 条，只显示前 ${SERIES_LIMIT} 条`}
+                title={t('命中超过 {limit} 条，只显示前 {limit} 条', { limit: SERIES_LIMIT })}
               />
             )}
             {seriesTable(hits.rows, hits.path)}
@@ -519,19 +522,19 @@ const Explorer: React.FC = () => {
         )}
 
         <Card
-          title="节点信息"
+          title={t('节点信息')}
           size="small"
           extra={
             info && (
               <Button size="small" icon={<ReloadOutlined />} onClick={() => fetchInfo(info.path)}>
-                重新读取
+                {t('重新读取')}
               </Button>
             )
           }
         >
           <Spin spinning={infoLoading}>
             {!info ? (
-              <Empty description="点击左侧树中的节点查看其信息" />
+              <Empty description={t('点击左侧树中的节点查看其信息')} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
@@ -559,8 +562,8 @@ const Explorer: React.FC = () => {
                   <Alert
                     type="warning"
                     showIcon
-                    title="部分信息读取失败"
-                    description={infoErrors.join('；')}
+                    title={t('部分信息读取失败')}
+                    description={infoErrors.join('; ')}
                   />
                 )}
 
@@ -568,7 +571,7 @@ const Explorer: React.FC = () => {
 
                 {info.children.length > 0 && (
                   <div>
-                    <Text strong>子节点</Text>
+                    <Text strong>{t('子节点')}</Text>
                     <Table
                       size="small"
                       rowKey={(row) => row.path}
@@ -577,16 +580,16 @@ const Explorer: React.FC = () => {
                       scroll={{ x: 'max-content' }}
                       onRow={(row) => ({ onClick: () => selectNode(row.path, true), style: { cursor: 'pointer' } })}
                       columns={[
-                        { title: '名称', dataIndex: 'name', key: 'name' },
+                        { title: t('名称'), dataIndex: 'name', key: 'name' },
                         {
-                          title: '类型',
+                          title: t('类型'),
                           dataIndex: 'kind',
                           key: 'kind',
                           render: (kind: NodeKind) => (
-                            <Tag color={KIND_META[kind].color}>{KIND_META[kind].label}</Tag>
+                            <Tag color={KIND_META[kind].color}>{t(KIND_META[kind].label)}</Tag>
                           ),
                         },
-                        { title: '完整路径', dataIndex: 'path', key: 'path' },
+                        { title: t('完整路径'), dataIndex: 'path', key: 'path' },
                       ]}
                     />
                   </div>
@@ -595,10 +598,10 @@ const Explorer: React.FC = () => {
                 {info.kind !== 'TIMESERIES' && info.series.length > 0 && (
                   <div>
                     <Text strong>
-                      下属时间序列 {info.seriesCount !== undefined ? `(${info.seriesCount})` : ''}
+                      {t('下属时间序列')} {info.seriesCount !== undefined ? `(${info.seriesCount})` : ''}
                     </Text>
                     {info.seriesTruncated && (
-                      <Text type="secondary">（仅显示前 {SERIES_LIMIT} 条）</Text>
+                      <Text type="secondary">{t('（仅显示前 {n} 条）', { n: SERIES_LIMIT })}</Text>
                     )}
                     {seriesTable(info.series, info.path)}
                   </div>
@@ -606,7 +609,7 @@ const Explorer: React.FC = () => {
 
                 {info.latest && (
                   <div>
-                    <Text strong>最新值</Text>
+                    <Text strong>{t('最新值')}</Text>
                     <Table
                       size="small"
                       rowKey="key"
@@ -620,7 +623,7 @@ const Explorer: React.FC = () => {
 
                 {info.preview && (
                   <div>
-                    <Text strong>最近 {PREVIEW_LIMIT} 行数据</Text>
+                    <Text strong>{t('最近 {n} 行数据', { n: PREVIEW_LIMIT })}</Text>
                     <Table
                       size="small"
                       rowKey="key"
@@ -628,7 +631,7 @@ const Explorer: React.FC = () => {
                       columns={shapedColumns(info.preview.fields)}
                       pagination={false}
                       scroll={{ x: 'max-content' }}
-                      locale={{ emptyText: '该节点暂无数据行' }}
+                      locale={{ emptyText: t('该节点暂无数据行') }}
                     />
                   </div>
                 )}

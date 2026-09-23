@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Row, Col, Statistic, Spin, Alert, Tag, Table, Typography } from 'antd';
 import {
   ClusterOutlined,
@@ -25,10 +25,12 @@ import {
 import { getNodes, getServices, getConnections, getCurrentQueries } from '../../services/metadata';
 import type { NodeInfo, ServiceInfo, ConnectionInfo, CurrentQuery } from '../../types/api';
 import { isServiceUp, formatMillis, queryColumns } from '../../utils/cluster';
+import { useI18n } from '../../i18n';
 
 const { Title } = Typography;
 
 const ClusterManagement: React.FC = () => {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
@@ -36,7 +38,7 @@ const ClusterManagement: React.FC = () => {
   const [connections, setConnections] = useState<ConnectionInfo[]>([]);
   const [queries, setQueries] = useState<CurrentQuery[]>([]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const [nodesResult, servicesResult, connectionsResult, queriesResult] = await Promise.allSettled([
       getNodes(),
@@ -47,22 +49,22 @@ const ClusterManagement: React.FC = () => {
     const failures: string[] = [];
     const read = <T,>(label: string, result: PromiseSettledResult<T[]>): T[] => {
       if (result.status === 'fulfilled') return result.value;
-      failures.push(`${label}：${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      failures.push(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
       return [];
     };
-    setNodes(read('节点', nodesResult));
-    setServices(read('服务', servicesResult));
-    setConnections(read('连接', connectionsResult));
-    setQueries(read('运行中查询', queriesResult));
+    setNodes(read(t('节点'), nodesResult));
+    setServices(read(t('服务'), servicesResult));
+    setConnections(read(t('连接'), connectionsResult));
+    setQueries(read(t('运行中查询'), queriesResult));
     setErrors(failures);
     setLoading(false);
-  };
+  }, [t]);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   const dataNodes = useMemo(() => nodes.filter((node) => node.nodeType === 'DataNode'), [nodes]);
   const configNodes = useMemo(() => nodes.filter((node) => node.nodeType === 'ConfigNode'), [nodes]);
@@ -85,7 +87,7 @@ const ClusterManagement: React.FC = () => {
 
   return (
     <div>
-      <Title level={3}>集群管理</Title>
+      <Title level={3}>{t('集群管理')}</Title>
 
       <Spin spinning={loading}>
         {errors.length > 0 && (
@@ -93,8 +95,8 @@ const ClusterManagement: React.FC = () => {
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            title="部分数据加载失败"
-            description={errors.join('；')}
+            title={t('部分数据加载失败')}
+            description={errors.join('; ')}
           />
         )}
 
@@ -102,7 +104,7 @@ const ClusterManagement: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="总节点数"
+                title={t('总节点数')}
                 value={nodes.length}
                 prefix={<ClusterOutlined />}
               />
@@ -111,7 +113,7 @@ const ClusterManagement: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="数据节点"
+                title={t('数据节点')}
                 value={dataNodes.length}
                 prefix={<DatabaseOutlined />}
               />
@@ -120,7 +122,7 @@ const ClusterManagement: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="配置节点"
+                title={t('配置节点')}
                 value={configNodes.length}
                 prefix={<ApiOutlined />}
               />
@@ -129,7 +131,7 @@ const ClusterManagement: React.FC = () => {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="当前连接"
+                title={t('当前连接')}
                 value={connections.length}
                 prefix={<WifiOutlined />}
               />
@@ -139,28 +141,28 @@ const ClusterManagement: React.FC = () => {
 
         <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
           <Col xs={24} lg={12}>
-            <Card title="数据节点" size="small">
-              {renderNodeList(dataNodes, '暂无数据节点')}
+            <Card title={t('数据节点')} size="small">
+              {renderNodeList(dataNodes, t('暂无数据节点'))}
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="配置节点" size="small">
-              {renderNodeList(configNodes, '暂无配置节点')}
+            <Card title={t('配置节点')} size="small">
+              {renderNodeList(configNodes, t('暂无配置节点'))}
             </Card>
           </Col>
         </Row>
 
-        <Card title="服务状态" size="small" style={{ marginTop: 24 }}>
+        <Card title={t('服务状态')} size="small" style={{ marginTop: 24 }}>
           {services.length === 0 ? (
-            <Alert description="暂无服务数据" type="info" showIcon />
+            <Alert description={t('暂无服务数据')} type="info" showIcon />
           ) : (
             <Table
               dataSource={services.map((svc) => ({ ...svc, key: `${svc.serviceName}-${svc.dataNodeId}` }))}
               columns={[
-                { title: '服务', dataIndex: 'serviceName', key: 'serviceName' },
+                { title: t('服务'), dataIndex: 'serviceName', key: 'serviceName' },
                 { title: 'DataNode', dataIndex: 'dataNodeId', key: 'dataNodeId' },
                 {
-                  title: '状态',
+                  title: t('状态'),
                   dataIndex: 'state',
                   key: 'state',
                   render: (state: string) => (
@@ -174,9 +176,9 @@ const ClusterManagement: React.FC = () => {
           )}
         </Card>
 
-        <Card title="运行中查询" size="small" style={{ marginTop: 24 }}>
+        <Card title={t('运行中查询')} size="small" style={{ marginTop: 24 }}>
           {queries.length === 0 ? (
-            <Alert description="暂无运行中查询" type="info" showIcon />
+            <Alert description={t('暂无运行中查询')} type="info" showIcon />
           ) : (
             <Table
               dataSource={queries.map((q) => ({ ...q, key: q.queryId }))}
@@ -188,9 +190,9 @@ const ClusterManagement: React.FC = () => {
           )}
         </Card>
 
-        <Card title="当前连接" size="small" style={{ marginTop: 24 }}>
+        <Card title={t('当前连接')} size="small" style={{ marginTop: 24 }}>
           {connections.length === 0 ? (
-            <Alert description="暂无连接" type="info" showIcon />
+            <Alert description={t('暂无连接')} type="info" showIcon />
           ) : (
             <Table
               dataSource={connections.map((c) => ({ ...c, key: `${c.dataNodeId}-${c.sessionId}` }))}
