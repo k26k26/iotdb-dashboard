@@ -177,6 +177,8 @@ cp .env.example .env.local   # then set VITE_IOTDB_HOST / VITE_IOTDB_PORT
 
 When a connection test fails the dialog says *why* — credentials rejected, nothing listening on that port, or no answer at all — and then shows the exact server-side properties to enable, the firewall commands for the port, and a **扫描局域网** box that walks `1–255` of a subnet you name (RFC 1918 ranges only) looking for anything answering on the REST port.
 
+The Wi-Fi badge in the header is not a switch you have to remember to flip: the app probes the node once at startup and then updates the badge from the responses of the queries you actually run, so a stale "未连接" after a reload means the probe could not reach that address.
+
 ```bash
 npm run build    # type-check + production bundle into dist/
 npm run lint     # oxlint

@@ -37,9 +37,15 @@ instance.interceptors.request.use((config) => {
 });
 
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // The badge follows real traffic: a 2xx proves the address works without a manual test.
+    useConnectionStore.getState().setConnected(true);
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401) {
+    // No response = unreachable, 401/403 = reachable with bad credentials; other statuses prove an
+    // HTTP server answered, so they leave the badge alone.
+    if (!error.response || error.response.status === 401 || error.response.status === 403) {
       useConnectionStore.getState().setConnected(false);
     }
     return Promise.reject(error);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Menu, Button, theme } from 'antd';
 import {
   DashboardOutlined,
@@ -57,6 +57,11 @@ const AppLayout: React.FC = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  useEffect(() => {
+    // localStorage can carry a green badge from a session that has since died, so verify once at startup.
+    void useConnectionStore.getState().testConnection();
+  }, []);
 
   const menuItems = [
     {

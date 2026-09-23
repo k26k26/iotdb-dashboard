@@ -99,7 +99,9 @@ export const useConnectionStore = create<ConnectionState>()(
       password: 'root',
       isConnected: false,
       setConnection: (config) => set(config),
-      setConnected: (connected) => set({ isConnected: connected }),
+      // Real traffic drives this, so skip the write (and the localStorage churn) when unchanged.
+      setConnected: (connected) =>
+        set((state) => (state.isConnected === connected ? state : { isConnected: connected })),
       testConnection: async () => {
         const { host, port, username, password } = get();
         const result = await probeEndpoint({ host, port, username, password });

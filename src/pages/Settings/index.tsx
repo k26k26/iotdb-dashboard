@@ -23,7 +23,7 @@ import LanScanner from '../../components/LanScanner';
 
 const Settings: React.FC = () => {
   const { theme, language, maxRows, autoRefresh, refreshInterval, setTheme, setLanguage, setMaxRows, setAutoRefresh, setRefreshInterval } = useSettingsStore();
-  const { host, port, username, setConnection, setConnected, testConnection } = useConnectionStore();
+  const { host, port, username, isConnected, setConnection, setConnected, testConnection } = useConnectionStore();
   const { message } = App.useApp();
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [testing, setTesting] = useState(false);
@@ -39,6 +39,10 @@ const Settings: React.FC = () => {
     message.success('设置已保存');
   };
 
+  const stateText = probe
+    ? probe.ok ? '可用' : '不可用'
+    : isConnected ? '已连接（由页面内的请求确认）' : '尚未测试';
+
   return (
     <div>
       <Card title="连接配置" style={{ marginBottom: 16 }}>
@@ -47,7 +51,7 @@ const Settings: React.FC = () => {
           column={1}
           items={[
             { key: 'target', label: '当前生效的地址', children: `${username}@${host}:${port}` },
-            { key: 'state', label: '状态', children: probe ? (probe.ok ? '可用' : '不可用') : '尚未测试' },
+            { key: 'state', label: '状态', children: stateText },
           ]}
         />
         <Button type="primary" loading={testing} onClick={runProbe} style={{ marginBottom: 16 }}>
@@ -59,7 +63,7 @@ const Settings: React.FC = () => {
             type="success"
             showIcon
             title={`已连接 ${host}:${port}，/ping 在 ${probe.ms}ms 内应答`}
-            description="凭据是否有效要到能鉴权的接口上才知道，这里只确认端口上有 REST 在应答。"
+            description="探测会带上你填写的凭据；/ping 是否校验它们由服务端决定，所以这里确认的是这个地址可达。"
           />
         )}
         {probe && !probe.ok && (
