@@ -57,7 +57,13 @@ const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({ title, subtitle, xAxi
       type: 'category',
       boundaryGap: false,
       data: xAxisData,
-      axisLabel: { formatter: (val: number) => new Date(val).toLocaleTimeString() },
+      axisLabel: {
+        formatter: (val: string | number) => {
+          // A category axis hands the value back as a string, and new Date("1790120726573") is Invalid Date.
+          const stamp = Number(val);
+          return Number.isFinite(stamp) ? new Date(stamp).toLocaleTimeString() : String(val);
+        },
+      },
     },
     yAxis: { type: 'value' },
     series: [
