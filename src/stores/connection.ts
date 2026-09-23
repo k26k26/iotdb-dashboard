@@ -26,11 +26,69 @@ interface ConnectionState {
   isConnected: boolean;
   setConnection: (config: Partial<ConnectionConfig>) => void;
   setConnected: (connected: boolean) => void;
-  testConnection: () => Promise<boolean>;
+  testConnection: () => Promise<ProbeResult>;
 }
 
-export const DEFAULT_HOST = '192.168.77.245';
-export const DEFAULT_PORT = 18080;
+/**
+ * What ships in the repo: a placeholder that reaches nothing. A developer points it at their own
+ * node with `.env.local` (git-ignored), so no intranet address ever gets committed.
+ */
+const FALLBACK_HOST = '127.0.0.1';
+const FALLBACK_PORT = 18080;
+
+export const DEFAULT_HOST = (import.meta.env.VITE_IOTDB_HOST as string | undefined)?.trim() || FALLBACK_HOST;
+export const DEFAULT_PORT = Number(import.meta.env.VITE_IOTDB_PORT) || FALLBACK_PORT;
+export const HAS_LOCAL_DEFAULT = DEFAULT_HOST !== FALLBACK_HOST;
+
+/** How long a probe waits for an answer before giving up. */
+export const PROBE_TIMEOUT_MS = 4000;
+
+/**
+ * Chrome collapses connection-refused, dropped packets and CORS failures into one opaque
+ * TypeError, so the only usable signal left is how long it took: an immediate failure means
+ * something answered "no" (nothing listening), a slow one means nobody answered at all.
+ */
+const FAST_FAIL_MS = 1000;
+
+export type ProbeFailure = 'auth' | 'http' | 'blocked' | 'refused' | 'timeout';
+
+export interface ProbeResult {
+  ok: boolean;
+  failure?: ProbeFailure;
+  status?: number;
+  ms: number;
+}
+
+export const probeEndpoint = async (
+  target: { host: string; port: number; username: string; password: string }
+): Promise<ProbeResult> => {
+  const url = `http://${target.host}:${target.port}/ping`;
+  if (window.location.protocol === 'https:') {
+    // An https page cannot reach a plain-HTTP node; the browser blocks it before it leaves.
+    return { ok: false, failure: 'blocked', ms: 0 };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  const started = performance.now();
+  const elapsed = () => Math.round(performance.now() - started);
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Basic ${btoa(`${target.username}:${target.password}`)}` },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (response.ok) return { ok: true, status: response.status, ms: elapsed() };
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, failure: 'auth', status: response.status, ms: elapsed() };
+    }
+    return { ok: false, failure: 'http', status: response.status, ms: elapsed() };
+  } catch {
+    if (controller.signal.aborted) return { ok: false, failure: 'timeout', ms: elapsed() };
+    return { ok: false, failure: elapsed() < FAST_FAIL_MS ? 'refused' : 'timeout', ms: elapsed() };
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 export const useConnectionStore = create<ConnectionState>()(
   persist(
@@ -43,22 +101,23 @@ export const useConnectionStore = create<ConnectionState>()(
       setConnection: (config) => set(config),
       setConnected: (connected) => set({ isConnected: connected }),
       testConnection: async () => {
-        try {
-          const { host, port, username, password } = get();
-          const response = await fetch(`http://${host}:${port}/ping`, {
-            method: 'GET',
-            headers: {
-              Authorization: `Basic ${btoa(`${username}:${password}`)}`,
-            },
-          });
-          return response.ok;
-        } catch {
-          return false;
-        }
+        const { host, port, username, password } = get();
+        const result = await probeEndpoint({ host, port, username, password });
+        set({ isConnected: result.ok });
+        return result;
       },
     }),
     {
       name: 'iotdb-connection',
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<ConnectionState>;
+        // A browser still holding the shipped placeholder has never been pointed at anything real,
+        // so the locally configured default wins over it. Anything the user typed by hand is kept.
+        if (HAS_LOCAL_DEFAULT && saved.host === FALLBACK_HOST) {
+          return { ...current, ...saved, host: DEFAULT_HOST };
+        }
+        return { ...current, ...saved };
+      },
     }
   )
 );

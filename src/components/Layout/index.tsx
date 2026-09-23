@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { Layout, Menu, Button, theme, Modal, Form, Input, InputNumber, message } from 'antd';
+import { Layout, Menu, Button, theme } from 'antd';
 import {
   DashboardOutlined,
   CodeOutlined,
@@ -44,16 +44,16 @@ import {
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useConnectionStore } from '../../stores/connection';
+import ConnectionModal from '../ConnectionModal';
 
 const { Header, Sider, Content } = Layout;
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
-  const { host, port, username, password, setConnection, isConnected, setConnected } = useConnectionStore();
+  const { host, port, username, isConnected } = useConnectionStore();
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -136,19 +136,6 @@ const AppLayout: React.FC = () => {
     },
   ];
 
-  const handleTestConnection = async () => {
-    const values = await form.validateFields();
-    setConnection(values);
-    const ok = await useConnectionStore.getState().testConnection();
-    if (ok) {
-      setConnected(true);
-      message.success('连接成功');
-      setModalOpen(false);
-    } else {
-      message.error('连接失败，请检查配置');
-    }
-  };
-
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
@@ -226,29 +213,7 @@ const AppLayout: React.FC = () => {
         </Content>
       </Layout>
 
-      <Modal
-        title="连接配置"
-        open={modalOpen}
-        onOk={handleTestConnection}
-        onCancel={() => setModalOpen(false)}
-        okText="测试并连接"
-        cancelText="取消"
-      >
-        <Form form={form} layout="vertical" initialValues={{ host, port, username, password }}>
-          <Form.Item name="host" label="Host" rules={[{ required: true, message: '请输入 Host' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="port" label="Port" rules={[{ required: true, message: '请输入 Port' }]}>
-            <InputNumber min={1} max={65535} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="username" label="Username" rules={[{ required: true, message: '请输入 Username' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="password" label="Password" rules={[{ required: true, message: '请输入 Password' }]}>
-            <Input.Password />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <ConnectionModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </Layout>
   );
 };

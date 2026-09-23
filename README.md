@@ -19,7 +19,7 @@ Licensed under the Apache License 2.0 — see [LICENSE](./LICENSE) and [NOTICE](
 
 ## Interface preview
 
-Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state.
+Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state. The header of each capture shows the address of the author's private LAN node, which is where the data came from and is not reachable from anywhere else.
 
 ### Core
 
@@ -167,7 +167,15 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-Then open the app and fill in host / port / username / password on the connection page. The config is persisted in `localStorage` under the `iotdb-connection` key.
+Then open the app and fill in host / port / username / password in the **连接配置** dialog in the header. It starts out pointing at `127.0.0.1:18080`; whatever you save is persisted in `localStorage` under the `iotdb-connection` key.
+
+To avoid typing it on every machine, keep your node in a git-ignored `.env.local`:
+
+```bash
+cp .env.example .env.local   # then set VITE_IOTDB_HOST / VITE_IOTDB_PORT
+```
+
+When a connection test fails the dialog says *why* — credentials rejected, nothing listening on that port, or no answer at all — and then shows the exact server-side properties to enable, the firewall commands for the port, and a **扫描局域网** box that walks `1–255` of a subnet you name (RFC 1918 ranges only) looking for anything answering on the REST port.
 
 ```bash
 npm run build    # type-check + production bundle into dist/
@@ -194,7 +202,7 @@ The REST base URL is then built directly from the host and port you enter in the
 Please read before pointing this at anything that matters:
 
 - **Not production-ready for exposed networks.** Credentials are held in `localStorage` and sent as HTTP Basic auth over plain HTTP unless you terminate TLS yourself.
-- Default connection values are `192.168.77.245:18080` with `root/root` — the author's LAN development node, which you will not be able to reach. A host you saved earlier wins over these defaults and is kept in `localStorage` under the `iotdb-connection` key, so change it in the **连接配置** dialog in the header. Never point this app at a node you have not secured; the app does not force a credential change.
+- The app starts out pointing at `127.0.0.1:18080`, which will only work if IoTDB is on the machine running your browser. Point it at your own node in the **连接配置** dialog, or set `VITE_IOTDB_HOST` / `VITE_IOTDB_PORT` in a git-ignored `.env.local` so you do not retype it. A host you saved earlier wins over the default and is kept in `localStorage` under the `iotdb-connection` key. Never point this app at a node you have not secured; the app does not force a credential change.
 - The `/ai` page calls no model and no external service — it is a local rule-based health check over data the server already returned, so its findings are only as good as the sample you point it at. Every page imports the services layer, but how completely each call is wired has not been audited page by page, so treat a blank panel as "unverified", not "no results".
 - No unit tests yet. CI covers type-checking, linting, build and license headers only.
 

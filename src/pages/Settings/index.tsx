@@ -14,14 +14,26 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { Card, Form, Input, InputNumber, Switch, Select, Button, message } from 'antd';
+import React, { useState } from 'react';
+import { Alert, App, Button, Card, Descriptions, Divider, Form, InputNumber, Select, Switch } from 'antd';
 import { useSettingsStore } from '../../stores/settings';
-import { useConnectionStore } from '../../stores/connection';
+import { useConnectionStore, type ProbeResult } from '../../stores/connection';
+import ConnectionGuide from '../../components/ConnectionGuide';
+import LanScanner from '../../components/LanScanner';
 
 const Settings: React.FC = () => {
   const { theme, language, maxRows, autoRefresh, refreshInterval, setTheme, setLanguage, setMaxRows, setAutoRefresh, setRefreshInterval } = useSettingsStore();
-  const { host, port, username } = useConnectionStore();
+  const { host, port, username, setConnection, setConnected, testConnection } = useConnectionStore();
+  const { message } = App.useApp();
+  const [probe, setProbe] = useState<ProbeResult | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const runProbe = async () => {
+    setTesting(true);
+    const result = await testConnection();
+    setTesting(false);
+    setProbe(result);
+  };
 
   const handleSaveSettings = () => {
     message.success('设置已保存');
@@ -30,25 +42,41 @@ const Settings: React.FC = () => {
   return (
     <div>
       <Card title="连接配置" style={{ marginBottom: 16 }}>
-        <Form layout="vertical">
-          <Form.Item label="Host">
-            <Input defaultValue={host} />
-          </Form.Item>
-          <Form.Item label="Port">
-            <InputNumber min={1} max={65535} defaultValue={port} />
-          </Form.Item>
-          <Form.Item label="Username">
-            <Input defaultValue={username} />
-          </Form.Item>
-          <Form.Item label="Password">
-            <Input.Password placeholder="不会回显已保存的密码" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" onClick={() => message.info('连接参数请使用顶栏的「连接配置」，此处仅展示当前生效的配置')}>
-              保存连接配置
-            </Button>
-          </Form.Item>
-        </Form>
+        <Descriptions
+          size="small"
+          column={1}
+          items={[
+            { key: 'target', label: '当前生效的地址', children: `${username}@${host}:${port}` },
+            { key: 'state', label: '状态', children: probe ? (probe.ok ? '可用' : '不可用') : '尚未测试' },
+          ]}
+        />
+        <Button type="primary" loading={testing} onClick={runProbe} style={{ marginBottom: 16 }}>
+          测试当前连接
+        </Button>
+
+        {probe?.ok && (
+          <Alert
+            type="success"
+            showIcon
+            title={`已连接 ${host}:${port}，/ping 在 ${probe.ms}ms 内应答`}
+            description="凭据是否有效要到能鉴权的接口上才知道，这里只确认端口上有 REST 在应答。"
+          />
+        )}
+        {probe && !probe.ok && (
+          <ConnectionGuide failure={probe.failure} status={probe.status} target={`${host}:${port}`} />
+        )}
+
+        <Divider style={{ margin: '16px 0' }} />
+        <LanScanner
+          currentHost={host}
+          currentPort={port}
+          onPick={(picked, pickedPort) => {
+            setConnection({ host: picked, port: pickedPort });
+            setConnected(false);
+            setProbe(null);
+            message.success(`已把 ${picked}:${pickedPort} 填进连接配置`);
+          }}
+        />
       </Card>
 
       <Card title="通用设置">
