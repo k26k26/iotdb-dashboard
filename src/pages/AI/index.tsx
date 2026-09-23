@@ -34,7 +34,8 @@ import {
 } from 'antd';
 import { ExperimentOutlined } from '@ant-design/icons';
 import TimeSeriesChart from '../../components/TimeSeriesChart';
-import { WINDOWS, normalizePath, readCluster, readQuality } from '../../services/analysis';
+import { WINDOWS, readCluster, readQuality } from '../../services/analysis';
+import { normalizePath } from '../../utils/path';
 import { formatTimestamp } from '../../utils/formatter';
 import {
   clusterFindings,

@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import React, { useRef, useState } from 'react';
-import { App as AntdApp, Alert, Button, Card, Select, Space, Table, Typography } from 'antd';
-import { UploadOutlined, ExportOutlined } from '@ant-design/icons';
+import React, { useMemo, useRef, useState } from 'react';
+import { App as AntdApp, Alert, Button, Card, Input, Select, Space, Table, Tooltip, Typography } from 'antd';
+import { InfoCircleOutlined, UploadOutlined, ExportOutlined } from '@ant-design/icons';
 import { query, insertTablet } from '../../services/rest';
 import { shapeResult } from '../../utils/queryResult';
+import { normalizeDevicePath, normalizePath } from '../../utils/path';
 import { parseCsv, toCsv } from '../../utils/csv';
 
 const { Text } = Typography;
@@ -61,9 +62,63 @@ const castValue = (cell: string | undefined, dataType: string): string | number 
 
 // In the tree model a path's last node is the measurement and everything before it is the
 // device, so one CSV whose columns are full paths can address many devices at once.
-const splitPath = (path: string) => {
-  const cut = path.lastIndexOf('.');
-  return cut < 0 ? { device: '', measurement: path } : { device: path.slice(0, cut), measurement: path.slice(cut + 1) };
+interface ParsedFile {
+  fileName: string;
+  timeIndex: number;
+  dataCols: { index: number; name: string }[];
+  allRows: string[][];
+  rows: string[][];
+  skipped: number;
+}
+
+/**
+ * Every column has to resolve to `<device>.<measurement>` before anything is sent. The CSV this page
+ * exports carries full paths, so splitting on the last dot suffices; hand-written CSVs usually name the
+ * measurements only, which is what the 目标设备 field covers. An unresolved column is reported by name
+ * instead of going out -- the server answers an empty `device` with `code 305 … root. is not a legal
+ * path` and a relative one with `code 305 Path does not exist.`, so guessing here only produced a blank
+ * 设备 row plus a message nobody could act on.
+ */
+const resolveTargets = (parsed: ParsedFile, prefixRaw: string) => {
+  const trimmed = prefixRaw.trim();
+  const prefixDevice = trimmed ? normalizeDevicePath(trimmed) : '';
+  const issues: string[] = [];
+  if (trimmed && !prefixDevice) {
+    issues.push(
+      '「目标设备」不是合法路径：树模型的设备必须以 root. 开头，只能含字母、数字、下划线或中文，不能带空格、引号或通配符。'
+    );
+  }
+  const columns: ColumnPlan[] = [];
+  parsed.dataCols.forEach(({ index, name }) => {
+    const full = normalizePath(name);
+    if (!full || full !== name) {
+      issues.push(`列「${name}」不是合法的时间序列路径（不要带引号、空格或通配符）。`);
+      return;
+    }
+    const cut = full.lastIndexOf('.');
+    const rawDevice = cut < 0 ? prefixDevice : full.slice(0, cut);
+    const measurement = cut < 0 ? full : full.slice(cut + 1);
+    if (!rawDevice) {
+      // A bad 目标设备 already says so once; repeating it per column buries the actual reason.
+      if (!trimmed) {
+        issues.push(`列「${name}」只有测点名、没有设备前缀——请在上方「目标设备」里填这批测点属于哪台设备。`);
+      }
+      return;
+    }
+    const device = normalizeDevicePath(rawDevice);
+    if (!device) {
+      issues.push(`列「${name}」的设备段「${rawDevice}」必须以 root. 开头。`);
+      return;
+    }
+    columns.push({
+      index,
+      timeseries: name,
+      device,
+      measurement,
+      dataType: inferType(parsed.allRows.map((row) => row[index])),
+    });
+  });
+  return { columns, issues };
 };
 
 interface ColumnPlan {
@@ -85,10 +140,30 @@ const DataManagement: React.FC = () => {
   const { message, modal } = AntdApp.useApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const [plan, setPlan] = useState<ImportPlan | null>(null);
+  const [prefix, setPrefix] = useState('');
+  const [parsed, setParsed] = useState<ParsedFile | null>(null);
+  const [overrides, setOverrides] = useState<Record<number, string>>({});
   const [parseError, setParseError] = useState('');
   const [importing, setImporting] = useState(false);
+
+  const resolved = useMemo(() => (parsed ? resolveTargets(parsed, prefix) : null), [parsed, prefix]);
+  const issues = resolved?.issues ?? [];
+  const plan: ImportPlan | null = useMemo(() => {
+    if (!parsed || !resolved || resolved.issues.length) return null;
+    return {
+      timeIndex: parsed.timeIndex,
+      columns: resolved.columns.map((column) => ({
+        ...column,
+        dataType: overrides[column.index] ?? column.dataType,
+      })),
+      rows: parsed.rows,
+      skipped: parsed.skipped,
+    };
+  }, [parsed, resolved, overrides]);
+  const devices = useMemo(
+    () => new Set((plan?.columns ?? []).map((column) => column.device)),
+    [plan]
+  );
 
   const exportCSV = async () => {
     setExporting(true);
@@ -118,9 +193,9 @@ const DataManagement: React.FC = () => {
     const file = event.target.files?.[0];
     event.target.value = '';
     setParseError('');
-    setPlan(null);
+    setParsed(null);
+    setOverrides({});
     if (!file) return;
-    setFileName(file.name);
     try {
       const { header, rows } = parseCsv(await file.text());
       const timeIndex = header.findIndex(isTimeHeader);
@@ -136,38 +211,23 @@ const DataManagement: React.FC = () => {
         return;
       }
       const kept = rows.filter((row) => parseTime(row[timeIndex]) !== null);
-      setPlan({
-        timeIndex,
-        columns: dataCols.map(({ name, index }) => ({
-          index,
-          timeseries: name,
-          ...splitPath(name),
-          dataType: inferType(rows.map((row) => row[index])),
-        })),
-        rows: kept,
-        skipped: rows.length - kept.length,
-      });
+      setParsed({ fileName: file.name, timeIndex, dataCols, allRows: rows, rows: kept, skipped: rows.length - kept.length });
     } catch (error: any) {
       setParseError(`读取 CSV 失败: ${error.message}`);
     }
   };
 
-  const changeType = (index: number, dataType: string) =>
-    setPlan((prev) =>
-      prev
-        ? { ...prev, columns: prev.columns.map((c) => (c.index === index ? { ...c, dataType } : c)) }
-        : prev
-    );
+  const changeType = (index: number, dataType: string) => setOverrides((prev) => ({ ...prev, [index]: dataType }));
 
   const runImport = async () => {
     if (!plan) return;
     setImporting(true);
-    const devices = [...new Set(plan.columns.map((c) => c.device))];
+    const targets = [...devices];
     try {
       for (let start = 0; start < plan.rows.length; start += BATCH_ROWS) {
         const batch = plan.rows.slice(start, start + BATCH_ROWS);
         const timestamps = batch.map((row) => parseTime(row[plan.timeIndex]) as number);
-        for (const device of devices) {
+        for (const device of targets) {
           const columns = plan.columns.filter((c) => c.device === device);
           await insertTablet({
             device,
@@ -181,9 +241,9 @@ const DataManagement: React.FC = () => {
           });
         }
       }
-      message.success(`导入完成：${plan.rows.length} 行 × ${plan.columns.length} 列 / ${devices.length} 个设备`);
-      setPlan(null);
-      setFileName('');
+      message.success(`导入完成：${plan.rows.length} 行 × ${plan.columns.length} 列 / ${targets.length} 个设备`);
+      setParsed(null);
+      setOverrides({});
     } catch (error: any) {
       message.error(`导入失败: ${error.response?.data?.message || error.message}`);
     } finally {
@@ -203,7 +263,19 @@ const DataManagement: React.FC = () => {
   return (
     <div>
       <Card title="数据管理" size="small">
-        <Space>
+        <Space wrap>
+          <Tooltip title="CSV 的列名如果只有测点名（temperature 而不是 root.sg.d1.temperature），就统统挂到这台设备下；列名本身带完整路径时以列名为准。树模型的设备路径必须以 root. 开头。">
+            <Text type="secondary">
+              目标设备 <InfoCircleOutlined />
+            </Text>
+          </Tooltip>
+          <Input
+            placeholder="root.sg.d1（列名只写测点名时必填）"
+            value={prefix}
+            onChange={(e) => setPrefix(e.target.value)}
+            style={{ width: 340 }}
+            allowClear
+          />
           <Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>
             上传 CSV
           </Button>
@@ -219,8 +291,25 @@ const DataManagement: React.FC = () => {
           </Button>
         </Space>
 
-        {parseError && (
-          <Alert type="error" showIcon title="无法解析 CSV" description={parseError} style={{ marginTop: 16 }} />
+        {(parseError || (parsed && issues.length > 0)) && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginTop: 16 }}
+            title="这份 CSV 还没法导入"
+            description={
+              <div>
+                {parseError && <div>{parseError}</div>}
+                {parsed &&
+                  issues.slice(0, 8).map((line) => (
+                    <div key={line}>
+                      <code>{line}</code>
+                    </div>
+                  ))}
+                {parsed && issues.length > 8 && <div>另有 {issues.length - 8} 列有同类问题。</div>}
+              </div>
+            }
+          />
         )}
 
         {plan && (
@@ -230,16 +319,16 @@ const DataManagement: React.FC = () => {
             style={{ marginTop: 16 }}
             title={
               <Space>
-                <span>导入预览：{fileName}</span>
+                <span>导入预览：{parsed?.fileName}</span>
                 <Text type="secondary">
-                  {plan.rows.length} 行 × {plan.columns.length} 列 / {new Set(plan.columns.map((c) => c.device)).size} 个设备
+                  {plan.rows.length} 行 × {plan.columns.length} 列 / {devices.size} 个设备
                   {plan.skipped > 0 ? `，跳过 ${plan.skipped} 行无有效时间戳` : ''}
                 </Text>
               </Space>
             }
             extra={
               <Space>
-                <Button onClick={() => setPlan(null)}>取消</Button>
+                <Button onClick={() => setParsed(null)}>取消</Button>
                 <Button
                   type="primary"
                   loading={importing}
@@ -247,7 +336,7 @@ const DataManagement: React.FC = () => {
                   onClick={() =>
                     modal.confirm({
                       title: '确认写入 IoTDB？',
-                      content: `将向 ${new Set(plan.columns.map((c) => c.device)).size} 个设备写入 ${plan.rows.length} 行，同时间戳的同测点会被覆盖。`,
+                      content: `将向 ${devices.size} 个设备写入 ${plan.rows.length} 行，同时间戳的同测点会被覆盖。`,
                       onOk: runImport,
                     })
                   }

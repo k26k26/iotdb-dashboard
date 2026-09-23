@@ -16,6 +16,7 @@
 
 import { query, queryTableRows, assertRestOk } from './rest';
 import { shapeResult } from '../utils/queryResult';
+import { normalizeDevicePath } from '../utils/path';
 import type { ShapedResult } from '../utils/queryResult';
 import type { ClusterReads, QualityReads, Readout } from '../utils/analysis';
 
@@ -73,15 +74,8 @@ export const readCluster = (): Promise<ClusterReads> =>
 
 /**
  * A path is interpolated into statements, so it only ever reaches the server in the bare dotted form
- * IoTDB accepts without quoting: no quotes, no backslash, no space, no wildcard tail.
+ * IoTDB accepts without quoting -- see `normalizePath()` in utils/path.
  */
-const PATH_SHAPE = /^[A-Za-z一-龥][A-Za-z0-9_一-龥]*(?:\.[A-Za-z0-9_一-龥]+)*$/;
-
-export const normalizePath = (input: string): string | null => {
-  const trimmed = input.trim().replace(/(?:\.\*\*|\.\*|\*\*)$/, '').replace(/\.$/, '');
-  return PATH_SHAPE.test(trimmed) ? trimmed : null;
-};
-
 export const WINDOWS: Record<string, { label: string; duration: string; step: string; spanMs: number }> = {
   '24h': { label: '近 24 小时', duration: '24h', step: '1h', spanMs: 86400000 },
   '7d': { label: '近 7 天', duration: '7d', step: '1d', spanMs: 604800000 },
@@ -109,7 +103,7 @@ export async function readQuality(options: QualityOptions): Promise<QualityReads
   );
   const usable = devices.rows
     .map((row) => String(row.Device ?? ''))
-    .filter((device) => PATH_SHAPE.test(device));
+    .filter((device) => normalizeDevicePath(device) !== null);
 
   const [last, buckets, ...points] = await Promise.all([
     readTree('最近值', `SELECT last * FROM ${path}.**`),

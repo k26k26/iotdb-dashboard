@@ -69,10 +69,14 @@ export const parseCsv = (text: string): ParsedCsv => {
   return { header: header.map((h) => h.trim()), rows };
 };
 
+const NUMERIC = /^[-+]?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+
 const escape = (value: unknown): string => {
   const text = value === null || value === undefined ? '' : String(value);
-  // A leading =, +, - or @ makes spreadsheet apps evaluate the cell as a formula.
-  const guarded = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  // A leading =, +, - or @ makes spreadsheet apps evaluate the cell as a formula -- but only for text.
+  // A negative reading is the common case here, and guarding it would come back through the importer as
+  // a TEXT value with a literal apostrophe instead of the number it was.
+  const guarded = !NUMERIC.test(text) && /^[=+\-@]/.test(text) ? `'${text}` : text;
   return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 };
 
