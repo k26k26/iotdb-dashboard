@@ -19,6 +19,144 @@
 
 共 28 个页面目录 + 2 个内嵌组件，对应 30 条路由。
 
+## 界面预览
+
+下面每一张图都是在真实运行的 IoTDB 2.0.11 节点上截取的 1920×911 画面，没有假数据、没有摆拍的空白页。分组与左侧菜单一致。某些页面显示的是服务端拒绝而不是表格，这是真实结果：IoTDB 2.0.11 没有对应语句，应用把拒绝原因原样报出来，而不是画一个空状态糊过去。
+
+### 核心功能
+
+**首页** —— 连接状态，以及存储组、设备、时间序列的计数。
+
+![首页](doc/images/dashboard-home.png)
+
+**SQL 查询** —— 语句编辑器、结果表格与图表放在同一个工作台里。
+
+![SQL 查询](doc/images/query-sql.png)
+
+**可视化** —— 把查询结果渲染成图板的看板。
+
+![可视化](doc/images/visualization-board.png)
+
+**路径浏览器** —— 左侧元数据树、右侧节点详情：schema、子路径、下属序列计数、最新值与最近若干行数据。
+
+![路径浏览器](doc/images/explorer-path-tree.png)
+
+### 数据管理
+
+**数据库管理** —— 查看数据库，创建并修改 TTL 与模式模式。
+
+![数据库管理](doc/images/database-management.png)
+
+**测点管理** —— 浏览并管理测点路径。
+
+![测点管理](doc/images/timeseries-management.png)
+
+**最新值** —— 对整个路径执行 `SELECT LAST`。
+
+![最新值](doc/images/latest-values.png)
+
+**数据导入导出** —— CSV 导入，查询结果导出。
+
+![数据导入导出](doc/images/data-import-export.png)
+
+**Schema 模板** —— 模板本身以及挂载它的路径。
+
+![Schema 模板](doc/images/template-management.png)
+
+### 集群运维
+
+**集群管理** —— DataNode / ConfigNode 列表、服务状态、运行中查询与当前连接。
+
+![集群管理](doc/images/cluster-monitor.png)
+
+**查询中心** —— 正在执行的查询及其耗时。
+
+![查询中心](doc/images/query-center.png)
+
+**数据管道** —— Pipe 任务。
+
+![数据管道](doc/images/pipe-management.png)
+
+**外部服务** —— 跳转 Grafana 等外部面板。
+
+![外部服务](doc/images/external-service.png)
+
+**实时监控** —— 节点指标的滚动曲线。
+
+![实时监控](doc/images/realtime-monitor.png)
+
+### 高级管理
+
+**权限管理** —— 用户与逐个用户的授权。
+
+![权限管理](doc/images/auth-management.png)
+
+**触发器** —— 注册与删除集群侧触发器。
+
+![触发器](doc/images/trigger-management.png)
+
+**连续查询** —— CQ 列表与创建。
+
+![连续查询](doc/images/continuous-query.png)
+
+**索引管理** —— 索引列表与索引 DDL。
+
+![索引管理](doc/images/index-management.png)
+
+**函数管理** —— UDF 注册表。
+
+![函数管理](doc/images/function-management.png)
+
+**配置管理** —— 从服务端读回的集群参数。
+
+![配置管理](doc/images/configuration.png)
+
+### 智能分析
+
+**告警管理** —— 告警规则；当方言里根本没有这个对象时，显示服务端的答复。
+
+![告警管理](doc/images/alert-management.png)
+
+**血缘分析** —— 从数据库往下走的 schema 血缘。
+
+![血缘分析](doc/images/lineage-analysis.png)
+
+**系统信息** —— 版本、当前用户与数据库清单。
+
+![系统信息](doc/images/system-info.png)
+
+**AI 分析** —— 对一条路径做基于规则的体检：每条结论都由服务端真实返回的数据算出，展开即可看到依据的语句和原始行。
+
+![AI 分析](doc/images/ai-analysis.png)
+
+### 企业特性
+
+**租户与配额** —— 以一个一级数据库为租户边界，加上服务端接受的配额语句。
+
+![租户与配额](doc/images/tenant-quota.png)
+
+**高可用监控** —— 运行中节点与 Schema 共识。
+
+![高可用监控](doc/images/high-availability.png)
+
+**审计日志** —— 审计开关与已记录的事件。
+
+![审计日志](doc/images/audit-log.png)
+
+**备份恢复** —— 可加载的 TsFile 与 LOAD 任务。
+
+![备份恢复](doc/images/backup-restore.png)
+
+**性能调优** —— 写入与查询统计，以及影响它们的参数。
+
+![性能调优](doc/images/performance-tuning.png)
+
+### 系统设置
+
+**系统设置** —— 连接参数与界面偏好。
+
+![系统设置](doc/images/settings.png)
+
 ## 环境要求
 
 - Node.js **20 及以上** 与 npm。Vite 8 / rolldown 在 Node 18 下会直接报 `node:util` 未导出 `styleText` 而中断，此时只有 `tsc -b` 能过，产物构建不了。
@@ -59,7 +197,7 @@ rest_service_port=18080
 
 - **不适合直接暴露在公网上。** 凭据以明文存放在 `localStorage`，且默认走 HTTP Basic over 明文 HTTP；除非你自己终结 TLS 并以 HTTPS 提供本应用，否则凭据和查询内容都是可被截获的。
 - 默认连接值为 `192.168.77.245:18080` + `root/root`，这是作者局域网里的开发节点，你那边连不上；请在顶栏「连接配置」里改成你自己的节点。之前打开过本应用的浏览器会一直沿用它自己存下的 host，直到你在那里重新保存。应用不会强制要求修改凭据，也请不要把它指向未加固的节点。
-- `/ai` 页面是占位实现，只会提示「AI 分析功能开发中，敬请期待」，不调用任何接口。其余页面均已引入 services 层，但**每个页面的接口覆盖程度没有逐页核验过**，看到空白面板请理解为「未验证」而不是「无数据」。
+- `/ai` 页面不调用任何模型、也没有外部服务中转，它是拿服务端已经返回的数据做本地规则体检，结论的好坏取决于你圈定的样本量。其余页面均已引入 services 层，但**每个页面的接口覆盖程度没有逐页核验过**，看到空白面板请理解为「未验证」而不是「无数据」。
 - 尚无单元测试。CI 只覆盖类型检查、lint、许可证头与构建。
 
 优先要补的是前两条：提供 `https://` 方案选项、以及不再默认持久化密码。欢迎提 PR。
