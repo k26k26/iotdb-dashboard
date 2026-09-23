@@ -19,7 +19,7 @@ Licensed under the Apache License 2.0 — see [LICENSE](./LICENSE) and [NOTICE](
 
 ## Interface preview
 
-Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state. The header of each capture shows the address of the author's private LAN node, which is where the data came from and is not reachable from anywhere else.
+Every image below is a real 1920×911 capture against a running IoTDB 2.0.11 node — no mock data and no staged screens. The grouping follows the sidebar. Where a page shows a server refusal instead of a table, that is the honest result: IoTDB 2.0.11 simply has no such statement, and the app reports the rejection rather than painting an empty state. The header of each capture shows the address of the author's private LAN node, and the data behind it is a throwaway `root.sg` database (two devices, nine timeseries of synthetic sensor values) — nothing there is production telemetry, and none of it is reachable from anywhere else.
 
 ### Core
 
